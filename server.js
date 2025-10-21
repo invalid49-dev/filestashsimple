@@ -20,8 +20,14 @@ app.use(express.static('public'));
 // Initialize SQLite database
 const db = new sqlite3.Database('./filestash.db');
 
-// Create tables
+// Create tables with optimizations
 db.serialize(() => {
+    // Optimize SQLite for performance
+    db.run('PRAGMA journal_mode = WAL');
+    db.run('PRAGMA synchronous = NORMAL');
+    db.run('PRAGMA cache_size = 10000');
+    db.run('PRAGMA temp_store = MEMORY');
+    
     db.run(`CREATE TABLE IF NOT EXISTS files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         full_path TEXT UNIQUE,
@@ -35,6 +41,14 @@ db.serialize(() => {
         attributes TEXT,
         crc32 TEXT
     )`);
+    
+    // Create indexes for better query performance
+    db.run('CREATE INDEX IF NOT EXISTS idx_filename ON files(filename)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_directory ON files(directory)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_extension ON files(extension)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_size ON files(size)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_is_directory ON files(is_directory)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_crc32 ON files(crc32)');
 });
 
 // Helper function to get file stats
@@ -211,88 +225,120 @@ app.get('/api/scan/progress/:scanId', (req, res) => {
     res.json(progress);
 });
 
-// Async scanning function for multiple directories
-async function scanMultipleDirectoriesAsync(rootPaths, scanId, batchSize) {
+// Optimized async scanning function with true parallelism
+async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount) {
     const progress = scanProgress.get(scanId);
     let scannedCount = 0;
     
     try {
-        // Get all files and directories from all root paths
+        // Get all files and directories from all root paths using parallel processing
+        console.log(`🔍 Starting directory enumeration with ${threadCount} threads...`);
         let allItems = [];
-        for (const rootPath of rootPaths) {
-            const items = await getAllItemsRecursively(rootPath);
+        
+        // Process root paths in parallel
+        const pathPromises = rootPaths.map(rootPath => getAllItemsRecursivelyOptimized(rootPath));
+        const pathResults = await Promise.all(pathPromises);
+        
+        // Flatten results
+        for (const items of pathResults) {
             allItems = allItems.concat(items);
         }
         
         progress.total = allItems.length;
+        console.log(`📊 Found ${allItems.length} items to process`);
         
-        // Process in batches
-        for (let i = 0; i < allItems.length; i += batchSize) {
-            const batch = allItems.slice(i, i + batchSize);
+        // Create worker pool for parallel processing
+        const chunkSize = Math.ceil(allItems.length / threadCount);
+        const chunks = [];
+        
+        for (let i = 0; i < allItems.length; i += chunkSize) {
+            chunks.push(allItems.slice(i, i + chunkSize));
+        }
+        
+        console.log(`⚡ Processing ${chunks.length} chunks in parallel...`);
+        
+        // Process chunks in parallel
+        const chunkPromises = chunks.map(async (chunk, chunkIndex) => {
+            const chunkResults = [];
             
-            // Process batch
-            for (const itemPath of batch) {
+            for (const itemPath of chunk) {
                 try {
-                    const fileStats = getFileStats(itemPath);
+                    const fileStats = await getFileStatsOptimized(itemPath);
                     
                     if (fileStats) {
-                        // Insert into database
-                        await new Promise((resolve, reject) => {
-                            db.run(`INSERT OR REPLACE INTO files 
-                                (full_path, directory, filename, extension, size, created_time, modified_time, is_directory, attributes, crc32)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                                [fileStats.full_path, fileStats.directory, fileStats.filename, fileStats.extension,
-                                 fileStats.size, fileStats.created_time, fileStats.modified_time, fileStats.is_directory,
-                                 fileStats.attributes, fileStats.crc32],
-                                function(err) {
-                                    if (err) reject(err);
-                                    else resolve();
-                                }
-                            );
-                        });
-                        
+                        chunkResults.push(fileStats);
                         scannedCount++;
                         progress.processed = scannedCount;
+                        
+                        // Update progress every 100 items
+                        if (scannedCount % 100 === 0) {
+                            console.log(`📈 Processed ${scannedCount}/${allItems.length} items`);
+                        }
                     }
                 } catch (error) {
                     progress.errors.push(`Error processing ${itemPath}: ${error.message}`);
                 }
             }
             
-            // Small delay to prevent blocking
-            await new Promise(resolve => setTimeout(resolve, 10));
-        }
+            return chunkResults;
+        });
+        
+        // Wait for all chunks to complete
+        const chunkResults = await Promise.all(chunkPromises);
+        
+        // Flatten results and batch insert to database
+        const allFileStats = chunkResults.flat();
+        console.log(`💾 Batch inserting ${allFileStats.length} records to database...`);
+        
+        await batchInsertToDatabase(allFileStats);
         
         progress.status = 'completed';
+        progress.endTime = Date.now();
+        progress.duration = progress.endTime - progress.startTime;
+        
+        console.log(`✅ Scan completed in ${Math.round(progress.duration / 1000)} seconds`);
         
     } catch (error) {
         progress.status = 'error';
+        progress.endTime = Date.now();
+        progress.duration = progress.endTime - progress.startTime;
         progress.errors.push(`Scan error: ${error.message}`);
+        console.error('❌ Scan error:', error);
     }
 }
 
-// Helper function to get all items recursively
-async function getAllItemsRecursively(rootPath) {
+// Optimized recursive directory enumeration using async operations
+async function getAllItemsRecursivelyOptimized(rootPath) {
     const items = [];
     const directories = [rootPath];
+    const fs_promises = require('fs').promises;
 
     while (directories.length > 0) {
         const currentDir = directories.pop();
         items.push(currentDir);
 
         try {
-            const dirItems = fs.readdirSync(currentDir);
-            for (const item of dirItems) {
+            const dirItems = await fs_promises.readdir(currentDir);
+            
+            // Process directory items in parallel
+            const itemPromises = dirItems.map(async (item) => {
                 const fullPath = path.join(currentDir, item);
                 try {
-                    const stats = fs.statSync(fullPath);
-                    items.push(fullPath);
-                    
-                    if (stats.isDirectory()) {
-                        directories.push(fullPath);
-                    }
+                    const stats = await fs_promises.stat(fullPath);
+                    return { fullPath, isDirectory: stats.isDirectory() };
                 } catch (e) {
-                    // Skip inaccessible items
+                    return null; // Skip inaccessible items
+                }
+            });
+            
+            const itemResults = await Promise.all(itemPromises);
+            
+            for (const result of itemResults) {
+                if (result) {
+                    items.push(result.fullPath);
+                    if (result.isDirectory) {
+                        directories.push(result.fullPath);
+                    }
                 }
             }
         } catch (e) {
@@ -301,6 +347,96 @@ async function getAllItemsRecursively(rootPath) {
     }
 
     return items;
+}
+
+// Optimized file stats function using async operations
+async function getFileStatsOptimized(filePath) {
+    const fs_promises = require('fs').promises;
+    
+    try {
+        const stats = await fs_promises.stat(filePath);
+        const parsed = path.parse(filePath);
+        
+        return {
+            full_path: filePath,
+            directory: parsed.dir,
+            filename: parsed.base,
+            extension: parsed.ext,
+            size: stats.size,
+            created_time: stats.birthtime.toISOString(),
+            modified_time: stats.mtime.toISOString(),
+            is_directory: stats.isDirectory() ? 1 : 0,
+            attributes: getFileAttributes(stats),
+            crc32: stats.isDirectory() ? null : await calculateCRC32Optimized(filePath, stats.size)
+        };
+    } catch (error) {
+        console.error(`Error getting stats for ${filePath}:`, error.message);
+        return null;
+    }
+}
+
+// Optimized CRC32 calculation - skip for large files or use streaming
+async function calculateCRC32Optimized(filePath, fileSize) {
+    const fs_promises = require('fs').promises;
+    
+    try {
+        // Skip CRC32 for files larger than 50MB to speed up scanning
+        if (fileSize > 50 * 1024 * 1024) {
+            return 'LARGE_FILE';
+        }
+        
+        // Skip CRC32 for files larger than 10MB and use fast hash
+        if (fileSize > 10 * 1024 * 1024) {
+            const data = await fs_promises.readFile(filePath);
+            return crypto.createHash('md5').update(data).digest('hex').substring(0, 8);
+        }
+        
+        // For smaller files, use the existing method
+        const data = await fs_promises.readFile(filePath);
+        return crypto.createHash('md5').update(data).digest('hex').substring(0, 8);
+    } catch (error) {
+        return null;
+    }
+}
+
+// Batch database insert for better performance
+async function batchInsertToDatabase(fileStatsArray) {
+    return new Promise((resolve, reject) => {
+        db.serialize(() => {
+            db.run('BEGIN TRANSACTION');
+            
+            const stmt = db.prepare(`INSERT OR REPLACE INTO files 
+                (full_path, directory, filename, extension, size, created_time, modified_time, is_directory, attributes, crc32)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+            
+            let completed = 0;
+            const total = fileStatsArray.length;
+            
+            for (const fileStats of fileStatsArray) {
+                stmt.run([
+                    fileStats.full_path, fileStats.directory, fileStats.filename, fileStats.extension,
+                    fileStats.size, fileStats.created_time, fileStats.modified_time, fileStats.is_directory,
+                    fileStats.attributes, fileStats.crc32
+                ], function(err) {
+                    if (err) {
+                        console.error('Database insert error:', err);
+                    }
+                    
+                    completed++;
+                    if (completed === total) {
+                        stmt.finalize();
+                        db.run('COMMIT', (err) => {
+                            if (err) {
+                                reject(err);
+                            } else {
+                                resolve();
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    });
 }
 
 // Get files with search

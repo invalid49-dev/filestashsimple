@@ -600,10 +600,20 @@
             
             <div class="form-group">
                 <label for="thread-count">Количество потоков для сканирования:</label>
-                <input type="number" id="thread-count" min="1" max="16" value="4" style="width: 100px;">
+                <input type="number" id="thread-count" min="1" max="32" value="8" style="width: 100px;">
                 <p style="margin-top: 5px; color: #7f8c8d; font-size: 12px;">
-                    Больше потоков = быстрее сканирование, но больше нагрузка на систему
+                    Рекомендуется: 8-16 потоков для вашего процессора 12/24. Больше потоков = быстрее сканирование.
                 </p>
+                <div style="margin-top: 10px; padding: 8px; background: #e8f4fd; border-radius: 4px; font-size: 12px;">
+                    <strong>💡 Оптимизации:</strong>
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+                        <li>Параллельное чтение файловой системы</li>
+                        <li>Асинхронные операции ввода-вывода</li>
+                        <li>Пакетная вставка в базу данных</li>
+                        <li>Пропуск CRC32 для файлов > 50MB</li>
+                        <li>Оптимизированные настройки SQLite</li>
+                    </ul>
+                </div>
             </div>
             
             <div class="form-group">
@@ -631,6 +641,10 @@
             <div class="stat-card">
                 <div class="stat-value" id="total-size">0 B</div>
                 <div class="stat-label">Общий размер</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="last-scan-time">-</div>
+                <div class="stat-label">Время последнего сканирования</div>
             </div>
         </div>
 

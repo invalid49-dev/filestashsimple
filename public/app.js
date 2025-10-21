@@ -111,6 +111,22 @@ function formatDate(dateString) {
     return new Date(dateString).toLocaleString('ru-RU');
 }
 
+// Format scan time
+function formatScanTime(seconds) {
+    if (seconds < 60) {
+        return `${seconds} сек`;
+    } else if (seconds < 3600) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes} мин ${remainingSeconds} сек`;
+    } else {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const remainingSeconds = seconds % 60;
+        return `${hours} ч ${minutes} мин ${remainingSeconds} сек`;
+    }
+}
+
 // Load available drives
 async function loadDrives() {
     try {
@@ -376,13 +392,22 @@ async function scanSelectedDirectories() {
         
         if (result.scanId) {
             // Monitor progress
-            await monitorScanProgress(result.scanId);
+            const finalProgress = await monitorScanProgress(result.scanId);
+            
+            // Show final results with time
+            if (finalProgress && finalProgress.duration) {
+                const scanTime = formatScanTime(Math.round(finalProgress.duration / 1000));
+                showMessage(`Сканирование завершено: ${pathsArray.length} папок обработано за ${scanTime}. Потоков: ${threadCount}`, 'success');
+                
+                // Update last scan time in stats
+                document.getElementById('last-scan-time').textContent = scanTime;
+            } else {
+                showMessage(`Сканирование завершено: ${pathsArray.length} папок обработано. Потоков: ${threadCount}`, 'success');
+            }
         }
         
         // Hide progress modal
         closeProgressModal();
-        
-        showMessage(`Сканирование завершено: ${pathsArray.length} папок обработано. Размер пакета: ${threadCount}`, 'success');
         loadStats();
         loadFiles();
         
@@ -417,11 +442,29 @@ async function monitorScanProgress(scanId, path) {
                 
                 if (progress.total > 0) {
                     const percentage = Math.round((progress.processed / progress.total) * 100);
-                    updateProgress(percentage, `Обработано: ${progress.processed}/${progress.total} папок`);
+                    const currentTime = Date.now();
+                    const elapsedTime = Math.round((currentTime - progress.startTime) / 1000);
+                    const timeText = formatScanTime(elapsedTime);
+                    
+                    // Calculate processing speed
+                    const itemsPerSecond = elapsedTime > 0 ? Math.round(progress.processed / elapsedTime) : 0;
+                    const speedText = itemsPerSecond > 0 ? ` | Скорость: ${itemsPerSecond} файлов/сек` : '';
+                    
+                    // Estimate remaining time
+                    const remaining = progress.total - progress.processed;
+                    const etaSeconds = itemsPerSecond > 0 ? Math.round(remaining / itemsPerSecond) : 0;
+                    const etaText = etaSeconds > 0 && etaSeconds < 3600 ? ` | Осталось: ~${formatScanTime(etaSeconds)}` : '';
+                    
+                    updateProgress(percentage, `Обработано: ${progress.processed}/${progress.total} файлов | Время: ${timeText}${speedText}${etaText}`);
                 }
                 
                 if (progress.status === 'completed' || progress.status === 'error') {
-                    resolve();
+                    // Show final time
+                    if (progress.duration) {
+                        const finalTime = formatScanTime(Math.round(progress.duration / 1000));
+                        updateProgress(100, `Завершено за ${finalTime}`);
+                    }
+                    resolve(progress);
                 } else {
                     setTimeout(checkProgress, 1000);
                 }
