@@ -382,11 +382,14 @@ async function scanSelectedDirectories() {
         const pathsArray = Array.from(selectedDirectories);
         updateProgress(0, `Сканирование ${pathsArray.length} папок...`);
         
+        const calculateCrc32 = document.getElementById('calculate-crc32').checked;
+        
         const result = await apiCall('/scan-multiple', { 
             method: 'POST',
             body: JSON.stringify({ 
                 paths: pathsArray,
-                threads: threadCount 
+                threads: threadCount,
+                calculateCrc32: calculateCrc32
             })
         });
         
@@ -401,6 +404,12 @@ async function scanSelectedDirectories() {
                 
                 // Update last scan time in stats
                 document.getElementById('last-scan-time').textContent = scanTime;
+                
+                // Calculate and display performance metrics
+                const totalItems = finalProgress.total || 0;
+                const durationSeconds = Math.round(finalProgress.duration / 1000);
+                const itemsPerSecond = durationSeconds > 0 ? Math.round(totalItems / durationSeconds) : 0;
+                document.getElementById('scan-performance').textContent = `${itemsPerSecond} файлов/сек`;
             } else {
                 showMessage(`Сканирование завершено: ${pathsArray.length} папок обработано. Потоков: ${threadCount}`, 'success');
             }

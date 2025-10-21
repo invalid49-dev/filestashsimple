@@ -175,8 +175,9 @@ const scanProgress = new Map();
 
 // Scan multiple selected directories
 app.post('/api/scan-multiple', async (req, res) => {
-    const { paths, threads } = req.body;
+    const { paths, threads, calculateCrc32 } = req.body;
     const batchSize = parseInt(threads) || 4;
+    const shouldCalculateCrc32 = calculateCrc32 !== false; // Default to true
     
     if (!paths || !Array.isArray(paths) || paths.length === 0) {
         return res.status(400).json({ error: 'Paths array is required' });
@@ -200,15 +201,16 @@ app.post('/api/scan-multiple', async (req, res) => {
         paths: paths,
         startTime: startTime,
         endTime: null,
-        duration: 0
+        duration: 0,
+        calculateCrc32: shouldCalculateCrc32
     });
 
     // Start scanning asynchronously
-    scanMultipleDirectoriesAsync(paths, scanId, batchSize);
+    scanMultipleDirectoriesAsync(paths, scanId, batchSize, shouldCalculateCrc32);
 
     res.json({
         scanId: scanId,
-        message: `Scan started for ${paths.length} directories with batch size ${batchSize}`,
+        message: `Scan started for ${paths.length} directories with ${batchSize} threads${shouldCalculateCrc32 ? ' (with CRC32)' : ' (without CRC32)'}`,
         paths: paths
     });
 });
@@ -226,7 +228,7 @@ app.get('/api/scan/progress/:scanId', (req, res) => {
 });
 
 // Optimized async scanning function with true parallelism
-async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount) {
+async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calculateCrc32 = true) {
     const progress = scanProgress.get(scanId);
     let scannedCount = 0;
     
@@ -263,7 +265,7 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount) {
             
             for (const itemPath of chunk) {
                 try {
-                    const fileStats = await getFileStatsOptimized(itemPath);
+                    const fileStats = await getFileStatsOptimized(itemPath, calculateCrc32);
                     
                     if (fileStats) {
                         chunkResults.push(fileStats);
@@ -350,12 +352,17 @@ async function getAllItemsRecursivelyOptimized(rootPath) {
 }
 
 // Optimized file stats function using async operations
-async function getFileStatsOptimized(filePath) {
+async function getFileStatsOptimized(filePath, calculateCrc32 = true) {
     const fs_promises = require('fs').promises;
     
     try {
         const stats = await fs_promises.stat(filePath);
         const parsed = path.parse(filePath);
+        
+        let crc32Value = null;
+        if (!stats.isDirectory() && calculateCrc32) {
+            crc32Value = await calculateCRC32Optimized(filePath, stats.size);
+        }
         
         return {
             full_path: filePath,
@@ -367,7 +374,7 @@ async function getFileStatsOptimized(filePath) {
             modified_time: stats.mtime.toISOString(),
             is_directory: stats.isDirectory() ? 1 : 0,
             attributes: getFileAttributes(stats),
-            crc32: stats.isDirectory() ? null : await calculateCRC32Optimized(filePath, stats.size)
+            crc32: crc32Value
         };
     } catch (error) {
         console.error(`Error getting stats for ${filePath}:`, error.message);
@@ -375,26 +382,37 @@ async function getFileStatsOptimized(filePath) {
     }
 }
 
-// Optimized CRC32 calculation - skip for large files or use streaming
+// Optimized CRC32 calculation using streaming for all file sizes
 async function calculateCRC32Optimized(filePath, fileSize) {
     const fs_promises = require('fs').promises;
     
     try {
-        // Skip CRC32 for files larger than 50MB to speed up scanning
-        if (fileSize > 50 * 1024 * 1024) {
-            return 'LARGE_FILE';
-        }
-        
-        // Skip CRC32 for files larger than 10MB and use fast hash
-        if (fileSize > 10 * 1024 * 1024) {
+        // For small files (< 10MB), read directly into memory
+        if (fileSize < 10 * 1024 * 1024) {
             const data = await fs_promises.readFile(filePath);
             return crypto.createHash('md5').update(data).digest('hex').substring(0, 8);
         }
         
-        // For smaller files, use the existing method
-        const data = await fs_promises.readFile(filePath);
-        return crypto.createHash('md5').update(data).digest('hex').substring(0, 8);
+        // For larger files, use streaming to avoid memory issues
+        return new Promise((resolve, reject) => {
+            const hash = crypto.createHash('md5');
+            const stream = fs.createReadStream(filePath, { highWaterMark: 64 * 1024 }); // 64KB chunks
+            
+            stream.on('data', (chunk) => {
+                hash.update(chunk);
+            });
+            
+            stream.on('end', () => {
+                resolve(hash.digest('hex').substring(0, 8));
+            });
+            
+            stream.on('error', (error) => {
+                console.error(`Error reading file for CRC32: ${filePath}`, error.message);
+                resolve(null);
+            });
+        });
     } catch (error) {
+        console.error(`Error calculating CRC32 for ${filePath}:`, error.message);
         return null;
     }
 }
