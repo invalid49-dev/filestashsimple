@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FileStash Simple - File Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            background: #ecf0f1;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            margin-right: 5px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .tab:hover:not(.active) {
+            background: #d5dbdb;
+        }
+
+        .tab-content {
+            display: none;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ecf0f1;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .directory-tree {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid #ecf0f1;
+            border-radius: 6px;
+            padding: 15px;
+            background: #fafafa;
+        }
+
+        .tree-item {
+            margin: 8px 0;
+            padding: 8px;
+            border-radius: 4px;
+            background: white;
+            border: 1px solid #ecf0f1;
+            transition: all 0.3s ease;
+        }
+
+        .tree-item:hover {
+            background: #f8f9fa;
+            border-color: #3498db;
+        }
+
+        .tree-item-header {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .expand-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: background-color 0.3s ease;
+            font-size: 12px;
+        }
+
+        .expand-icon:hover {
+            background: #ecf0f1;
+        }
+
+        .folder-icon {
+            margin-right: 8px;
+            font-size: 16px;
+        }
+
+        .folder-name {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .tree-children {
+            margin-left: 30px;
+            margin-top: 10px;
+            border-left: 2px solid #ecf0f1;
+            padding-left: 15px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .files-table {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .file-icon {
+            margin-right: 8px;
+            font-size: 16px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        .success {
+            background: #27ae60;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        .info {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-bar input {
+            flex: 1;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .file-checkbox {
+            margin: 0;
+        }
+
+        .selected-row {
+            background-color: #e3f2fd !important;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #ecf0f1;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #3498db;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 500px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: black;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .tabs {
+                flex-wrap: wrap;
+            }
+            
+            .tab {
+                flex: 1;
+                min-width: 120px;
+                text-align: center;
+            }
+            
+            .search-bar {
+                flex-direction: column;
+            }
+            
+            table {
+                font-size: 12px;
+            }
+            
+            th, td {
+                padding: 8px 10px;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
+
+            .file-browser {
+                max-height: 200px;
+            }
+        }
+
+        .file-browser {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #fafafa;
+        }
+
+        .file-browser-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s;
+        }
+
+        .file-browser-item:hover {
+            background-color: #e3f2fd;
+        }
+
+        .file-browser-item.selected {
+            background-color: #2196f3;
+            color: white;
+        }
+
+        .file-browser-icon {
+            margin-right: 8px;
+            font-size: 16px;
+        }
+
+        .file-browser-name {
+            flex: 1;
+            font-size: 14px;
+        }
+
+        .file-browser-expand {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .file-browser-expand:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        .file-browser-path {
+            padding: 8px 12px;
+            background: #f0f0f0;
+            border-bottom: 1px solid #ddd;
+            font-size: 12px;
+            font-family: monospace;
+        }
+
+        .file-browser-loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📁 FileStash Simple</h1>
+            <p>Простой и быстрый файловый менеджер</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('scan')">🔍 Сканирование</button>
+            <button class="tab" onclick="showTab('search')">🔎 Поиск файлов</button>
+            <button class="tab" onclick="showTab('settings')">⚙️ Настройки</button>
+        </div>
+
+        <!-- Scan Tab -->
+        <div id="scan-tab" class="tab-content active">
+            <h2>Сканирование папок</h2>
+            
+            <div class="form-group">
+                <label for="drive-select">Выберите диск:</label>
+                <select id="drive-select" onchange="onDriveChange()">
+                    <option value="">Загрузка дисков...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="path-input">Путь для сканирования:</label>
+                <input type="text" id="path-input" placeholder="Введите путь к папке..." value="C:\">
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <button class="btn btn-primary" onclick="browseDirectories()">📂 Обзор папок</button>
+                <button class="btn btn-secondary" onclick="expandAll()">📂 Развернуть все</button>
+                <button class="btn btn-secondary" onclick="collapseAll()">📁 Свернуть все</button>
+            </div>
+
+            <div class="directory-tree" id="directory-tree">
+                <div class="loading">Выберите папку для обзора</div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <button class="btn btn-success" onclick="scanSelectedDirectories()" id="scan-btn" disabled>
+                    🚀 Сканировать выбранные папки (<span id="selected-count">0</span>)
+                </button>
+            </div>
+
+            <div id="scan-status"></div>
+        </div>
+
+        <!-- Search Tab -->
+        <div id="search-tab" class="tab-content">
+            <h2>Поиск файлов</h2>
+            
+            <div class="search-bar">
+                <input type="text" id="search-input" placeholder="Поиск по имени, пути, расширению или CRC32..." onkeyup="handleSearchKeyup(event)">
+                <button class="btn btn-primary" onclick="searchFiles()">🔍 Поиск</button>
+                <button class="btn btn-secondary" onclick="loadFiles()">🔄 Обновить</button>
+                <select id="page-size-select" onchange="changePageSize()" style="padding: 10px; margin-left: 10px;">
+                    <option value="50">50 на странице</option>
+                    <option value="100">100 на странице</option>
+                    <option value="150">150 на странице</option>
+                    <option value="200">200 на странице</option>
+                </select>
+            </div>
+            
+            <div style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <input type="checkbox" id="select-all" onchange="toggleSelectAll()">
+                    <label for="select-all" style="margin: 0;">Выбрать все</label>
+                    <span id="selected-files-count" style="color: #7f8c8d; font-size: 14px;">0 файлов выбрано</span>
+                </div>
+                
+                <div id="file-actions" style="display: none;">
+                    <h4>Действия с выбранными файлами:</h4>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+                        <button class="btn btn-primary" onclick="openFileAction()">📂 Открыть</button>
+                        <button class="btn btn-success" onclick="copyFilesAction()">📋 Копировать</button>
+                        <button class="btn btn-warning" onclick="moveFilesAction()">📦 Переместить</button>
+                        <button class="btn btn-secondary" onclick="archiveFilesAction()">🗜️ Архивировать</button>
+                        <button class="btn btn-danger" onclick="deleteFilesAction()">🗑️ Удалить</button>
+                    </div>
+                    <div style="font-size: 12px; color: #666; padding: 5px; background: #f8f9fa; border-radius: 4px;">
+                        💡 <strong>Совет:</strong> Для тестирования создайте папку "C:\FileStash-Test" и используйте её как место назначения
+                        <button class="btn btn-secondary" onclick="createTestFolder()" style="margin-left: 10px; padding: 3px 8px; font-size: 11px;">
+                            Создать тестовую папку
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings-tab" class="tab-content">
+            <h2>Настройки</h2>
+            
+            <div class="form-group">
+                <label for="thread-count">Количество потоков для сканирования:</label>
+                <input type="number" id="thread-count" min="1" max="16" value="4" style="width: 100px;">
+                <p style="margin-top: 5px; color: #7f8c8d; font-size: 12px;">
+                    Больше потоков = быстрее сканирование, но больше нагрузка на систему
+                </p>
+            </div>
+            
+            <div class="form-group">
+                <h3>Управление базой данных</h3>
+                <button class="btn btn-success" onclick="backupDatabase()">💾 Создать резервную копию</button>
+                <button class="btn btn-danger" onclick="clearDatabase()">🗑️ Очистить базу данных</button>
+                <p style="margin-top: 10px; color: #7f8c8d; font-size: 14px;">
+                    Резервная копия сохраняется в JSON формате. Очистка удалит все записи из базы данных, но не затронет реальные файлы.
+                </p>
+            </div>
+            
+            <div id="settings-status"></div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="total-files">0</div>
+                <div class="stat-label">Всего файлов</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="total-dirs">0</div>
+                <div class="stat-label">Всего папок</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="total-size">0 B</div>
+                <div class="stat-label">Общий размер</div>
+            </div>
+        </div>
+
+        <!-- Files Table -->
+        <div class="files-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" id="header-select-all" onchange="toggleSelectAll()">
+                        </th>
+                        <th>Имя</th>
+                        <th>Путь</th>
+                        <th>Расширение</th>
+                        <th>Размер</th>
+                        <th>CRC32</th>
+                        <th>Изменен</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="files-tbody">
+                    <tr>
+                        <td colspan="8" class="loading">Загрузка файлов...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination">
+            <button class="btn btn-secondary" onclick="previousPage()" id="prev-btn" disabled>← Назад</button>
+            <span id="page-info">Страница 1 из 1</span>
+            <button class="btn btn-secondary" onclick="nextPage()" id="next-btn" disabled>Вперед →</button>
+        </div>
+    </div>
+
+    <!-- Modal for file operations -->
+    <div id="file-operation-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Операция с файлами</h3>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <div id="modal-body">
+                <!-- Content will be dynamically inserted -->
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button class="btn btn-primary" id="modal-confirm-btn" onclick="confirmOperation()">Подтвердить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Modal -->
+    <div id="progress-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="progress-title">Выполнение операции</h3>
+            </div>
+            <div id="progress-body">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%;">0%</div>
+                </div>
+                <div id="progress-status">Подготовка...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
