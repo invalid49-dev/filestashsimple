@@ -501,6 +501,35 @@
             padding: 20px;
             color: #666;
         }
+
+        /* Database status indicators */
+        .in-database {
+            background-color: #e8f5e8 !important;
+            border-left: 4px solid #27ae60 !important;
+        }
+
+        .in-database:hover {
+            background-color: #d4edda !important;
+        }
+
+        .tree-item.in-database {
+            background-color: #e8f5e8;
+            border-left: 4px solid #27ae60;
+        }
+
+        .tree-item.in-database:hover {
+            background-color: #d4edda;
+            border-color: #27ae60;
+        }
+
+        .file-browser-item.in-database {
+            background-color: #e8f5e8;
+            border-left: 4px solid #27ae60;
+        }
+
+        .file-browser-item.in-database:hover {
+            background-color: #d4edda;
+        }
     </style>
 </head>
 <body>
@@ -535,8 +564,6 @@
 
             <div style="margin-bottom: 15px;">
                 <button class="btn btn-primary" onclick="browseDirectories()">📂 Обзор папок</button>
-                <button class="btn btn-secondary" onclick="expandAll()">📂 Развернуть все</button>
-                <button class="btn btn-secondary" onclick="collapseAll()">📁 Свернуть все</button>
             </div>
 
             <div class="directory-tree" id="directory-tree">
@@ -725,6 +752,11 @@
                     <div class="progress-fill" id="progress-fill" style="width: 0%;">0%</div>
                 </div>
                 <div id="progress-status">Подготовка...</div>
+                <div style="text-align: center; margin-top: 15px;">
+                    <button id="stop-scan-btn" class="btn btn-danger" onclick="stopScanning()" style="display: none;">
+                        ⏹️ Остановить сканирование
+                    </button>
+                </div>
             </div>
         </div>
     </div>
