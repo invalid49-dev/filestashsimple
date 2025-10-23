@@ -202,7 +202,9 @@ app.post('/api/scan-multiple', async (req, res) => {
         startTime: startTime,
         endTime: null,
         duration: 0,
-        calculateCrc32: shouldCalculateCrc32
+        calculateCrc32: shouldCalculateCrc32,
+        cancelled: false,
+        cancellationRequested: false
     });
 
     // Start scanning asynchronously
@@ -227,19 +229,66 @@ app.get('/api/scan/progress/:scanId', (req, res) => {
     res.json(progress);
 });
 
+// Stop scan operation
+app.post('/api/scan/stop/:scanId', (req, res) => {
+    const { scanId } = req.params;
+    const progress = scanProgress.get(scanId);
+    
+    if (!progress) {
+        return res.status(404).json({ error: 'Scan not found' });
+    }
+    
+    if (progress.status !== 'scanning') {
+        return res.status(400).json({ 
+            error: 'Scan is not active', 
+            currentStatus: progress.status 
+        });
+    }
+    
+    // Request cancellation
+    progress.cancellationRequested = true;
+    console.log(`🛑 Cancellation requested for scan ${scanId}`);
+    
+    res.json({ 
+        message: 'Scan cancellation requested',
+        scanId: scanId,
+        status: 'cancellation_requested'
+    });
+});
+
 // Optimized async scanning function with true parallelism
 async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calculateCrc32 = true) {
     const progress = scanProgress.get(scanId);
     let scannedCount = 0;
     
     try {
+        // Check for cancellation before starting
+        if (progress.cancellationRequested) {
+            progress.status = 'cancelled';
+            progress.cancelled = true;
+            progress.endTime = Date.now();
+            progress.duration = progress.endTime - progress.startTime;
+            console.log(`🛑 Scan ${scanId} cancelled before enumeration`);
+            return;
+        }
+        
         // Get all files and directories from all root paths using parallel processing
         console.log(`🔍 Starting directory enumeration with ${threadCount} threads...`);
         let allItems = [];
         
         // Process root paths in parallel
-        const pathPromises = rootPaths.map(rootPath => getAllItemsRecursivelyOptimized(rootPath));
+        const pathPromises = rootPaths.map(rootPath => getAllItemsRecursivelyOptimized(rootPath, scanId));
         const pathResults = await Promise.all(pathPromises);
+        
+        // Check for cancellation after enumeration
+        if (progress.cancellationRequested) {
+            progress.status = 'cancelled';
+            progress.cancelled = true;
+            progress.endTime = Date.now();
+            progress.duration = progress.endTime - progress.startTime;
+            console.log(`🛑 Scan ${scanId} cancelled after enumeration`);
+            return;
+        }
         
         // Flatten results
         for (const items of pathResults) {
@@ -264,6 +313,12 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
             const chunkResults = [];
             
             for (const itemPath of chunk) {
+                // Check for cancellation in each chunk
+                if (progress.cancellationRequested) {
+                    console.log(`🛑 Chunk ${chunkIndex} stopping due to cancellation request`);
+                    break;
+                }
+                
                 try {
                     const fileStats = await getFileStatsOptimized(itemPath, calculateCrc32);
                     
@@ -288,6 +343,24 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
         // Wait for all chunks to complete
         const chunkResults = await Promise.all(chunkPromises);
         
+        // Check for cancellation before database insertion
+        if (progress.cancellationRequested) {
+            progress.status = 'cancelled';
+            progress.cancelled = true;
+            progress.endTime = Date.now();
+            progress.duration = progress.endTime - progress.startTime;
+            
+            // Still insert successfully scanned data
+            const allFileStats = chunkResults.flat();
+            if (allFileStats.length > 0) {
+                console.log(`💾 Inserting ${allFileStats.length} successfully scanned records before cancellation...`);
+                await batchInsertToDatabase(allFileStats);
+            }
+            
+            console.log(`🛑 Scan ${scanId} cancelled. Processed ${scannedCount} items before cancellation.`);
+            return;
+        }
+        
         // Flatten results and batch insert to database
         const allFileStats = chunkResults.flat();
         console.log(`💾 Batch inserting ${allFileStats.length} records to database...`);
@@ -310,12 +383,19 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
 }
 
 // Optimized recursive directory enumeration using async operations
-async function getAllItemsRecursivelyOptimized(rootPath) {
+async function getAllItemsRecursivelyOptimized(rootPath, scanId) {
     const items = [];
     const directories = [rootPath];
     const fs_promises = require('fs').promises;
+    const progress = scanProgress.get(scanId);
 
     while (directories.length > 0) {
+        // Check for cancellation during enumeration
+        if (progress && progress.cancellationRequested) {
+            console.log(`🛑 Directory enumeration stopped due to cancellation request`);
+            break;
+        }
+        
         const currentDir = directories.pop();
         items.push(currentDir);
 
@@ -456,6 +536,56 @@ async function batchInsertToDatabase(fileStatsArray) {
         });
     });
 }
+
+// Check database status for multiple paths
+app.post('/api/files/database-status', (req, res) => {
+    const { paths } = req.body;
+    
+    if (!paths || !Array.isArray(paths) || paths.length === 0) {
+        return res.status(400).json({ error: 'Paths array is required' });
+    }
+    
+    // Limit batch size to prevent excessive queries
+    if (paths.length > 1000) {
+        return res.status(400).json({ error: 'Too many paths. Maximum 1000 paths per request.' });
+    }
+    
+    // Sanitize and validate paths
+    const sanitizedPaths = paths.map(p => {
+        if (typeof p !== 'string') {
+            throw new Error('All paths must be strings');
+        }
+        return path.normalize(p);
+    });
+    
+    // Create placeholders for IN clause
+    const placeholders = sanitizedPaths.map(() => '?').join(',');
+    const query = `SELECT full_path FROM files WHERE full_path IN (${placeholders})`;
+    
+    // Set query timeout
+    const queryTimeout = setTimeout(() => {
+        return res.status(408).json({ error: 'Database query timeout' });
+    }, 5000);
+    
+    db.all(query, sanitizedPaths, (err, rows) => {
+        clearTimeout(queryTimeout);
+        
+        if (err) {
+            console.error('Database status check error:', err.message);
+            return res.status(500).json({ error: 'Database connection error' });
+        }
+        
+        // Create status map
+        const statusMap = {};
+        const foundPaths = new Set(rows.map(row => row.full_path));
+        
+        sanitizedPaths.forEach(filePath => {
+            statusMap[filePath] = foundPaths.has(filePath);
+        });
+        
+        res.json({ statusMap });
+    });
+});
 
 // Get files with search
 app.get('/api/files', (req, res) => {

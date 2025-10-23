@@ -14,6 +14,7 @@ let availableArchivers = [];
 let fileBrowserData = [];
 let selectedDestinationPath = '';
 let currentBrowserPath = 'drives';
+let currentScanId = null;
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function() {
@@ -183,7 +184,7 @@ function displayDirectoryTree(directories) {
         selected: false
     }));
     
-    renderDirectoryTree();
+    renderDirectoryTreeWithStatus();
 }
 
 // Render directory tree
@@ -282,7 +283,7 @@ async function toggleDirectory(dir) {
         }
     }
     
-    renderDirectoryTree();
+    renderDirectoryTreeWithStatus();
 }
 
 // Toggle directory selection
@@ -322,46 +323,7 @@ function updateSelectedCount() {
     document.getElementById('scan-btn').disabled = count === 0;
 }
 
-// Expand all directories
-async function expandAll() {
-    showMessage('Разворачиваем все папки...', 'info');
-    
-    async function expandDir(dir) {
-        if (!dir.expanded) {
-            await toggleDirectory(dir);
-            // Small delay to prevent overwhelming the server
-            await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        
-        // Expand children (limit depth to prevent infinite expansion)
-        if (dir.children.length > 0) {
-            for (const child of dir.children) {
-                await expandDir(child);
-            }
-        }
-    }
-    
-    try {
-        for (const dir of directoryTree) {
-            await expandDir(dir);
-        }
-        showMessage('Все папки развернуты', 'success');
-    } catch (error) {
-        showMessage('Ошибка при разворачивании папок', 'error');
-    }
-}
 
-// Collapse all directories
-function collapseAll() {
-    function collapseDir(dir) {
-        dir.expanded = false;
-        dir.children.forEach(child => collapseDir(child));
-    }
-    
-    directoryTree.forEach(dir => collapseDir(dir));
-    renderDirectoryTree();
-    showMessage('Все папки свернуты', 'success');
-}
 
 // Scan selected directories with batch processing
 async function scanSelectedDirectories() {
@@ -394,13 +356,22 @@ async function scanSelectedDirectories() {
         });
         
         if (result.scanId) {
+            // Store current scan ID and show stop button
+            currentScanId = result.scanId;
+            document.getElementById('stop-scan-btn').style.display = 'inline-block';
+            
             // Monitor progress
             const finalProgress = await monitorScanProgress(result.scanId);
             
             // Show final results with time
             if (finalProgress && finalProgress.duration) {
                 const scanTime = formatScanTime(Math.round(finalProgress.duration / 1000));
-                showMessage(`Сканирование завершено: ${pathsArray.length} папок обработано за ${scanTime}. Потоков: ${threadCount}`, 'success');
+                
+                if (finalProgress.status === 'cancelled') {
+                    showMessage(`Сканирование остановлено: обработано ${finalProgress.processed}/${finalProgress.total} файлов за ${scanTime}`, 'warning');
+                } else {
+                    showMessage(`Сканирование завершено: ${pathsArray.length} папок обработано за ${scanTime}. Потоков: ${threadCount}`, 'success');
+                }
                 
                 // Update last scan time in stats
                 document.getElementById('last-scan-time').textContent = scanTime;
@@ -411,7 +382,11 @@ async function scanSelectedDirectories() {
                 const itemsPerSecond = durationSeconds > 0 ? Math.round(totalItems / durationSeconds) : 0;
                 document.getElementById('scan-performance').textContent = `${itemsPerSecond} файлов/сек`;
             } else {
-                showMessage(`Сканирование завершено: ${pathsArray.length} папок обработано. Потоков: ${threadCount}`, 'success');
+                if (finalProgress && finalProgress.status === 'cancelled') {
+                    showMessage(`Сканирование остановлено: ${pathsArray.length} папок. Потоков: ${threadCount}`, 'warning');
+                } else {
+                    showMessage(`Сканирование завершено: ${pathsArray.length} папок обработано. Потоков: ${threadCount}`, 'success');
+                }
             }
         }
         
@@ -467,11 +442,19 @@ async function monitorScanProgress(scanId, path) {
                     updateProgress(percentage, `Обработано: ${progress.processed}/${progress.total} файлов | Время: ${timeText}${speedText}${etaText}`);
                 }
                 
-                if (progress.status === 'completed' || progress.status === 'error') {
+                if (progress.status === 'completed' || progress.status === 'error' || progress.status === 'cancelled') {
+                    // Hide stop button
+                    document.getElementById('stop-scan-btn').style.display = 'none';
+                    currentScanId = null;
+                    
                     // Show final time
                     if (progress.duration) {
                         const finalTime = formatScanTime(Math.round(progress.duration / 1000));
-                        updateProgress(100, `Завершено за ${finalTime}`);
+                        if (progress.status === 'cancelled') {
+                            updateProgress(Math.round((progress.processed / progress.total) * 100), `Сканирование остановлено за ${finalTime}. Обработано: ${progress.processed}/${progress.total} файлов`);
+                        } else {
+                            updateProgress(100, `Завершено за ${finalTime}`);
+                        }
                     }
                     resolve(progress);
                 } else {
@@ -485,6 +468,34 @@ async function monitorScanProgress(scanId, path) {
         
         checkProgress();
     });
+}
+
+// Stop scanning function
+async function stopScanning() {
+    if (!currentScanId) {
+        showMessage('Нет активного сканирования для остановки', 'error');
+        return;
+    }
+    
+    try {
+        const stopBtn = document.getElementById('stop-scan-btn');
+        stopBtn.disabled = true;
+        stopBtn.textContent = '⏳ Остановка...';
+        
+        const result = await apiCall(`/scan/stop/${currentScanId}`, { 
+            method: 'POST'
+        });
+        
+        showMessage('Запрос на остановку сканирования отправлен...', 'info');
+        
+    } catch (error) {
+        showMessage('Ошибка при остановке сканирования: ' + error.message, 'error');
+        
+        // Reset button state
+        const stopBtn = document.getElementById('stop-scan-btn');
+        stopBtn.disabled = false;
+        stopBtn.textContent = '⏹️ Остановить сканирование';
+    }
 }
 
 // Load statistics
@@ -741,6 +752,13 @@ function showProgressModal(title, status) {
 
 function closeProgressModal() {
     document.getElementById('progress-modal').style.display = 'none';
+    
+    // Clean up scan state
+    document.getElementById('stop-scan-btn').style.display = 'none';
+    const stopBtn = document.getElementById('stop-scan-btn');
+    stopBtn.disabled = false;
+    stopBtn.textContent = '⏹️ Остановить сканирование';
+    currentScanId = null;
 }
 
 function updateProgress(percentage, status) {
@@ -1200,7 +1218,7 @@ async function loadFileBrowser(path = 'drives') {
         const response = await apiCall(`/directory-tree?path=${encodeURIComponent(path)}`);
         fileBrowserData = response.nodes || [];
         currentBrowserPath = response.currentPath || path;
-        renderFileBrowser();
+        renderFileBrowserWithStatus();
     } catch (error) {
         console.error('Failed to load file browser:', error);
         document.getElementById('file-browser').innerHTML = 
@@ -1354,5 +1372,153 @@ async function backupDatabase() {
         showMessage(result.message, 'success');
     } catch (error) {
         showMessage('Ошибка создания резервной копии: ' + error.message, 'error');
+    }
+}
+
+// Database status checking functions
+let databaseStatusCache = new Map();
+let databaseStatusDebounceTimer = null;
+
+// Check database status for multiple paths
+async function checkDatabaseStatus(paths) {
+    if (!paths || paths.length === 0) {
+        return {};
+    }
+    
+    try {
+        console.log('Checking database status for paths:', paths);
+        const response = await apiCall('/files/database-status', {
+            method: 'POST',
+            body: JSON.stringify({ paths })
+        });
+        
+        // Update cache
+        Object.entries(response.statusMap).forEach(([path, status]) => {
+            databaseStatusCache.set(path, status);
+        });
+        
+        return response.statusMap;
+    } catch (error) {
+        console.error('Failed to check database status:', error);
+        return {};
+    }
+}
+
+// Apply database indicators to DOM elements
+function applyDatabaseIndicators(statusMap) {
+    if (!statusMap || Object.keys(statusMap).length === 0) {
+        return;
+    }
+    
+    console.log('Applying database indicators:', statusMap);
+    
+    // Apply to directory tree items
+    document.querySelectorAll('.tree-item').forEach(item => {
+        const folderName = item.querySelector('.folder-name');
+        if (folderName) {
+            // Find the corresponding directory data
+            const dirPath = findDirectoryPath(folderName.textContent);
+            if (dirPath && statusMap[dirPath]) {
+                item.classList.add('in-database');
+            } else {
+                item.classList.remove('in-database');
+            }
+        }
+    });
+    
+    // Apply to file browser items
+    document.querySelectorAll('.file-browser-item').forEach(item => {
+        const nameElement = item.querySelector('.file-browser-name');
+        if (nameElement && nameElement.textContent !== '.. (Назад)') {
+            // Get the full path from the item's onclick attribute
+            const onclickAttr = item.getAttribute('onclick');
+            if (onclickAttr) {
+                const pathMatch = onclickAttr.match(/selectDestination\('([^']+)'/);
+                if (pathMatch) {
+                    const path = pathMatch[1].replace(/\\\\/g, '\\');
+                    if (statusMap[path]) {
+                        item.classList.add('in-database');
+                    } else {
+                        item.classList.remove('in-database');
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Find directory path by name (helper function)
+function findDirectoryPath(name) {
+    // Search in directoryTree for matching name
+    function searchTree(dirs) {
+        for (const dir of dirs) {
+            if (dir.name === name) {
+                return dir.path;
+            }
+            if (dir.children && dir.children.length > 0) {
+                const found = searchTree(dir.children);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+    
+    return searchTree(directoryTree);
+}
+
+// Get all visible directory paths (helper function)
+function getAllVisiblePaths() {
+    const paths = [];
+    
+    function collectPaths(dirs) {
+        dirs.forEach(dir => {
+            paths.push(dir.path);
+            if (dir.expanded && dir.children.length > 0) {
+                collectPaths(dir.children);
+            }
+        });
+    }
+    
+    collectPaths(directoryTree);
+    return paths;
+}
+
+// Debounced database status check
+function debouncedDatabaseStatusCheck(paths) {
+    if (databaseStatusDebounceTimer) {
+        clearTimeout(databaseStatusDebounceTimer);
+    }
+    
+    databaseStatusDebounceTimer = setTimeout(async () => {
+        const statusMap = await checkDatabaseStatus(paths);
+        applyDatabaseIndicators(statusMap);
+    }, 300); // 300ms debounce
+}
+
+// Enhanced directory tree rendering with database status
+async function renderDirectoryTreeWithStatus() {
+    // First render the tree normally
+    renderDirectoryTree();
+    
+    // Collect all visible directory paths
+    const visiblePaths = getAllVisiblePaths();
+    
+    // Check database status for visible paths
+    if (visiblePaths.length > 0) {
+        debouncedDatabaseStatusCheck(visiblePaths);
+    }
+}
+
+// Enhanced file browser rendering with database status
+async function renderFileBrowserWithStatus() {
+    // First render the browser normally
+    renderFileBrowser();
+    
+    // Collect all visible paths
+    const visiblePaths = fileBrowserData.map(item => item.path);
+    
+    // Check database status for visible paths
+    if (visiblePaths.length > 0) {
+        debouncedDatabaseStatusCheck(visiblePaths);
     }
 }
