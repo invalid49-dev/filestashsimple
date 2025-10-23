@@ -51,6 +51,81 @@ db.serialize(() => {
     db.run('CREATE INDEX IF NOT EXISTS idx_crc32 ON files(crc32)');
 });
 
+// Scan history management functions
+const SCAN_HISTORY_FILE = './scan-history.json';
+
+// Initialize scan history file if it doesn't exist
+function initializeScanHistory() {
+    if (!fs.existsSync(SCAN_HISTORY_FILE)) {
+        const initialData = {
+            scans: [],
+            version: "1.0",
+            created: new Date().toISOString()
+        };
+        fs.writeFileSync(SCAN_HISTORY_FILE, JSON.stringify(initialData, null, 2));
+        console.log('📊 Scan history file initialized');
+    }
+}
+
+// Read scan history from JSON file
+function readScanHistory() {
+    try {
+        if (!fs.existsSync(SCAN_HISTORY_FILE)) {
+            initializeScanHistory();
+        }
+        const data = fs.readFileSync(SCAN_HISTORY_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        console.error('Error reading scan history:', error);
+        // Return default structure if file is corrupted
+        return {
+            scans: [],
+            version: "1.0",
+            created: new Date().toISOString()
+        };
+    }
+}
+
+// Write scan history to JSON file
+function writeScanHistory(historyData) {
+    try {
+        fs.writeFileSync(SCAN_HISTORY_FILE, JSON.stringify(historyData, null, 2));
+        return true;
+    } catch (error) {
+        console.error('Error writing scan history:', error);
+        return false;
+    }
+}
+
+// Add new scan record to history
+function addScanToHistory(scanRecord) {
+    try {
+        const history = readScanHistory();
+        
+        // Add the new scan record
+        history.scans.unshift(scanRecord); // Add to beginning for newest first
+        
+        // Keep only last 100 scans to prevent file from growing too large
+        if (history.scans.length > 100) {
+            history.scans = history.scans.slice(0, 100);
+        }
+        
+        // Write back to file
+        const success = writeScanHistory(history);
+        if (success) {
+            console.log(`📊 Scan record added to history: ${scanRecord.id}`);
+        }
+        
+        return success;
+    } catch (error) {
+        console.error('Error adding scan to history:', error);
+        return false;
+    }
+}
+
+// Initialize scan history
+initializeScanHistory();
+
 // Helper function to get file stats
 function getFileStats(filePath) {
     try {
@@ -92,6 +167,99 @@ function calculateCRC32(filePath) {
     } catch (error) {
         return null;
     }
+}
+
+// Build hierarchical tree structure from flat file list
+function buildFileTree(files) {
+    const tree = {};
+    const pathSeparator = process.platform === 'win32' ? '\\' : '/';
+    
+    // First, create a map of all existing paths in the database
+    const existingPaths = new Set();
+    files.forEach(file => {
+        if (file.full_path) {
+            existingPaths.add(file.full_path);
+        }
+    });
+    
+    files.forEach(file => {
+        // Skip empty paths
+        if (!file.full_path) return;
+        
+        // Normalize path separators
+        const normalizedPath = file.full_path.replace(/[\/\\]/g, pathSeparator);
+        const pathParts = normalizedPath.split(pathSeparator).filter(part => part.length > 0);
+        
+        if (pathParts.length === 0) return;
+        
+        let currentLevel = tree;
+        let currentPath = '';
+        
+        // Build path step by step, but only create nodes that actually exist in DB
+        pathParts.forEach((part, index) => {
+            const previousPath = currentPath;
+            currentPath += (currentPath ? pathSeparator : '') + part;
+            
+            // Only create intermediate directories if they exist in the database
+            // or if this is the final part (the actual file/folder from DB)
+            const isLastPart = index === pathParts.length - 1;
+            const pathExistsInDB = existingPaths.has(currentPath);
+            
+            if (isLastPart || pathExistsInDB) {
+                if (!currentLevel[part]) {
+                    currentLevel[part] = {
+                        name: part,
+                        path: currentPath,
+                        isDirectory: file.is_directory || !isLastPart,
+                        children: {},
+                        expanded: false,
+                        inDatabase: pathExistsInDB
+                    };
+                }
+                
+                // If this is the actual file/folder from database, add its data
+                if (isLastPart) {
+                    currentLevel[part].fileData = {
+                        id: file.id,
+                        filename: file.filename,
+                        extension: file.extension,
+                        size: file.size,
+                        created_time: file.created_time,
+                        modified_time: file.modified_time,
+                        crc32: file.crc32
+                    };
+                    currentLevel[part].isDirectory = file.is_directory === 1;
+                    currentLevel[part].inDatabase = true;
+                    
+                    // Remove children for files
+                    if (!file.is_directory) {
+                        delete currentLevel[part].children;
+                    }
+                }
+                
+                // Move to next level only if it's a directory
+                if (currentLevel[part].isDirectory) {
+                    currentLevel = currentLevel[part].children;
+                }
+            } else {
+                // For intermediate paths that don't exist in DB, we need to create them
+                // but mark them as not in database
+                if (!currentLevel[part]) {
+                    currentLevel[part] = {
+                        name: part,
+                        path: currentPath,
+                        isDirectory: true,
+                        children: {},
+                        expanded: false,
+                        inDatabase: false
+                    };
+                }
+                currentLevel = currentLevel[part].children;
+            }
+        });
+    });
+    
+    return tree;
 }
 
 // Get available drives (Windows specific)
@@ -269,6 +437,29 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
             progress.endTime = Date.now();
             progress.duration = progress.endTime - progress.startTime;
             console.log(`🛑 Scan ${scanId} cancelled before enumeration`);
+            
+            // Record early cancelled scan to history
+            try {
+                const scanRecord = {
+                    id: scanId,
+                    startTime: new Date(progress.startTime).toISOString(),
+                    endTime: new Date(progress.endTime).toISOString(),
+                    duration: progress.duration,
+                    status: 'cancelled',
+                    paths: rootPaths,
+                    threadCount: threadCount,
+                    filesProcessed: 0,
+                    totalFound: 0,
+                    calculateCrc32: calculateCrc32,
+                    errors: progress.errors || [],
+                    cancelled: true
+                };
+                
+                addScanToHistory(scanRecord);
+            } catch (historyError) {
+                console.error('❌ Failed to record early cancelled scan history:', historyError);
+            }
+            
             return;
         }
         
@@ -287,6 +478,29 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
             progress.endTime = Date.now();
             progress.duration = progress.endTime - progress.startTime;
             console.log(`🛑 Scan ${scanId} cancelled after enumeration`);
+            
+            // Record cancelled scan after enumeration to history
+            try {
+                const scanRecord = {
+                    id: scanId,
+                    startTime: new Date(progress.startTime).toISOString(),
+                    endTime: new Date(progress.endTime).toISOString(),
+                    duration: progress.duration,
+                    status: 'cancelled',
+                    paths: rootPaths,
+                    threadCount: threadCount,
+                    filesProcessed: 0,
+                    totalFound: allItems.length,
+                    calculateCrc32: calculateCrc32,
+                    errors: progress.errors || [],
+                    cancelled: true
+                };
+                
+                addScanToHistory(scanRecord);
+            } catch (historyError) {
+                console.error('❌ Failed to record cancelled scan history:', historyError);
+            }
+            
             return;
         }
         
@@ -358,6 +572,29 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
             }
             
             console.log(`🛑 Scan ${scanId} cancelled. Processed ${scannedCount} items before cancellation.`);
+            
+            // Record cancelled scan to history
+            try {
+                const scanRecord = {
+                    id: scanId,
+                    startTime: new Date(progress.startTime).toISOString(),
+                    endTime: new Date(progress.endTime).toISOString(),
+                    duration: progress.duration,
+                    status: 'cancelled',
+                    paths: rootPaths,
+                    threadCount: threadCount,
+                    filesProcessed: scannedCount,
+                    totalFound: progress.total || 0,
+                    calculateCrc32: calculateCrc32,
+                    errors: progress.errors || [],
+                    cancelled: true
+                };
+                
+                addScanToHistory(scanRecord);
+            } catch (historyError) {
+                console.error('❌ Failed to record cancelled scan history:', historyError);
+            }
+            
             return;
         }
         
@@ -379,6 +616,28 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
         progress.duration = progress.endTime - progress.startTime;
         progress.errors.push(`Scan error: ${error.message}`);
         console.error('❌ Scan error:', error);
+    } finally {
+        // Record scan to history regardless of completion status
+        try {
+            const scanRecord = {
+                id: scanId,
+                startTime: new Date(progress.startTime).toISOString(),
+                endTime: progress.endTime ? new Date(progress.endTime).toISOString() : new Date().toISOString(),
+                duration: progress.duration || 0,
+                status: progress.status || 'error',
+                paths: rootPaths,
+                threadCount: threadCount,
+                filesProcessed: progress.processed || 0,
+                totalFound: progress.total || 0,
+                calculateCrc32: calculateCrc32,
+                errors: progress.errors || [],
+                cancelled: progress.cancelled || false
+            };
+            
+            addScanToHistory(scanRecord);
+        } catch (historyError) {
+            console.error('❌ Failed to record scan history:', historyError);
+        }
     }
 }
 
@@ -611,6 +870,49 @@ app.get('/api/files', (req, res) => {
     });
 });
 
+// Get files in hierarchical tree structure
+app.get('/api/files/tree', (req, res) => {
+    const { search, rootPath } = req.query;
+    
+    let query = `
+        SELECT id, full_path, directory, filename, extension, size, 
+               created_time, modified_time, is_directory, crc32
+        FROM files
+    `;
+    let params = [];
+    
+    // Add search filter if provided
+    if (search) {
+        query += ' WHERE (filename LIKE ? OR full_path LIKE ? OR extension LIKE ? OR crc32 LIKE ?)';
+        const searchPattern = `%${search}%`;
+        params = [searchPattern, searchPattern, searchPattern, searchPattern];
+    }
+    
+    // Add root path filter if provided
+    if (rootPath) {
+        const rootFilter = search ? ' AND ' : ' WHERE ';
+        query += rootFilter + 'full_path LIKE ?';
+        params.push(`${rootPath}%`);
+    }
+    
+    query += ' ORDER BY directory ASC, is_directory DESC, filename ASC';
+    
+    db.all(query, params, (err, rows) => {
+        if (err) {
+            console.error('Tree query error:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        
+        try {
+            const tree = buildFileTree(rows);
+            res.json(tree);
+        } catch (buildError) {
+            console.error('Tree building error:', buildError);
+            res.status(500).json({ error: 'Failed to build file tree' });
+        }
+    });
+});
+
 // Get file by ID
 app.get('/api/files/:id', (req, res) => {
     const { id } = req.params;
@@ -655,6 +957,45 @@ app.get('/api/stats', (req, res) => {
         }
         res.json(rows[0]);
     });
+});
+
+// Get scan history
+app.get('/api/scan-history', (req, res) => {
+    try {
+        const history = readScanHistory();
+        res.json(history);
+    } catch (error) {
+        console.error('Error retrieving scan history:', error);
+        res.status(500).json({ 
+            error: 'Failed to retrieve scan history',
+            details: error.message 
+        });
+    }
+});
+
+// Clear scan history
+app.delete('/api/scan-history', (req, res) => {
+    try {
+        const emptyHistory = {
+            scans: [],
+            version: "1.0",
+            created: new Date().toISOString()
+        };
+        
+        const success = writeScanHistory(emptyHistory);
+        if (success) {
+            console.log('📊 Scan history cleared');
+            res.json({ message: 'Scan history cleared successfully' });
+        } else {
+            res.status(500).json({ error: 'Failed to clear scan history' });
+        }
+    } catch (error) {
+        console.error('Error clearing scan history:', error);
+        res.status(500).json({ 
+            error: 'Failed to clear scan history',
+            details: error.message 
+        });
+    }
 });
 
 // Clear database
@@ -1124,6 +1465,151 @@ app.post('/api/files/archive', async (req, res) => {
     }
 });
 
+// Enhanced archive creation with password and detailed logging
+app.post('/api/files/archive-enhanced', async (req, res) => {
+    const { fileIds, archiveName, destination, password, format } = req.body;
+    
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+        return res.status(400).json({ error: 'File IDs are required' });
+    }
+    
+    if (!archiveName || !destination) {
+        return res.status(400).json({ error: 'Archive name and destination are required' });
+    }
+    
+    try {
+        // Ensure destination directory exists
+        await fse.ensureDir(destination);
+        
+        // Get file paths
+        const filePaths = [];
+        const errors = [];
+        
+        for (const fileId of fileIds) {
+            const file = await new Promise((resolve, reject) => {
+                db.get('SELECT * FROM files WHERE id = ?', [fileId], (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row);
+                });
+            });
+            
+            if (file && fs.existsSync(file.full_path)) {
+                filePaths.push(file.full_path);
+            } else {
+                errors.push(`File not found: ${file ? file.filename : 'Unknown'}`);
+            }
+        }
+        
+        if (filePaths.length === 0) {
+            return res.status(400).json({ error: 'No valid files found' });
+        }
+        
+        // Check available archivers
+        const archivers = checkArchivers();
+        
+        if (Object.keys(archivers).length === 0) {
+            return res.status(400).json({ 
+                error: 'No external archivers found. Please install 7-Zip or WinRAR.',
+                suggestion: 'Download 7-Zip from https://www.7-zip.org/ or WinRAR from https://www.win-rar.com/'
+            });
+        }
+        
+        // Determine file extension based on format
+        const extensions = { '7z': '.7z', 'zip': '.zip', 'rar': '.rar' };
+        const extension = extensions[format] || '.7z';
+        const archivePath = path.join(destination, `${archiveName}${extension}`);
+        
+        // Use appropriate archiver based on format
+        let useArchiver = format === 'rar' ? 'winrar' : '7zip';
+        if (!archivers[useArchiver]) {
+            useArchiver = Object.keys(archivers)[0]; // Use first available
+        }
+        
+        const archiverPath = archivers[useArchiver];
+        
+        let command;
+        const { spawn } = require('child_process');
+        
+        if (useArchiver === '7zip') {
+            // 7-Zip command with optional password
+            command = [archiverPath, 'a', '-y', '-bsp1', '-bso1', '-bse1'];
+            if (password) {
+                command.push(`-p${password}`);
+            }
+            if (format === 'zip') {
+                command.push('-tzip');
+            }
+            command.push(archivePath);
+            command.push(...filePaths.map(p => `"${p}"`));
+        } else if (useArchiver === 'winrar') {
+            // WinRAR command with optional password
+            command = [archiverPath, 'a', '-y', '-ep1', '-ibck'];
+            if (password) {
+                command.push(`-hp${password}`);
+            }
+            command.push(archivePath);
+            command.push(...filePaths.map(p => `"${p}"`));
+        }
+        
+        console.log('Executing enhanced archiver command:', command.join(' '));
+        
+        // Execute archiver with detailed logging
+        const archiveProcess = spawn(command[0], command.slice(1), { 
+            shell: true, 
+            stdio: ['pipe', 'pipe', 'pipe'] 
+        });
+        
+        let progressOutput = '';
+        let errorOutput = '';
+        
+        archiveProcess.stdout.on('data', (data) => {
+            progressOutput += data.toString();
+            console.log('Archive stdout:', data.toString().trim());
+        });
+        
+        archiveProcess.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+            console.log('Archive stderr:', data.toString().trim());
+        });
+        
+        await new Promise((resolve, reject) => {
+            archiveProcess.on('close', (code) => {
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(`Archive process exited with code ${code}. Error: ${errorOutput}`));
+                }
+            });
+            
+            archiveProcess.on('error', (error) => {
+                reject(error);
+            });
+        });
+        
+        const stats = fs.statSync(archivePath);
+        
+        res.json({
+            message: `Enhanced archive created successfully using ${useArchiver}`,
+            archiveName: path.basename(archivePath),
+            archivePath: archivePath,
+            filesAdded: filePaths.length,
+            archiveSize: stats.size,
+            archiver: useArchiver,
+            format: format,
+            passwordProtected: !!password,
+            log: progressOutput,
+            errors: errors.length > 0 ? errors : undefined
+        });
+        
+    } catch (error) {
+        console.error('Enhanced archive creation failed:', error);
+        res.status(500).json({ 
+            error: `Enhanced archive creation failed: ${error.message}`,
+            suggestion: 'Make sure the selected archiver is properly installed and accessible'
+        });
+    }
+});
+
 // Open file (returns file info for client to handle)
 app.get('/api/files/:id/open', (req, res) => {
     const { id } = req.params;
@@ -1145,6 +1631,48 @@ app.get('/api/files/:id/open', (req, res) => {
             canOpen: exists && !row.is_directory
         });
     });
+});
+
+// Open file in system default program
+app.get('/api/files/open-system', (req, res) => {
+    const { path: filePath } = req.query;
+    
+    if (!filePath) {
+        return res.status(400).json({ error: 'File path is required' });
+    }
+    
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+    }
+    
+    try {
+        const { exec } = require('child_process');
+        let command;
+        
+        if (process.platform === 'win32') {
+            // Windows: use start command
+            command = `start "" "${filePath}"`;
+        } else if (process.platform === 'darwin') {
+            // macOS: use open command
+            command = `open "${filePath}"`;
+        } else {
+            // Linux: use xdg-open
+            command = `xdg-open "${filePath}"`;
+        }
+        
+        exec(command, (error) => {
+            if (error) {
+                console.error('Error opening file:', error);
+                return res.status(500).json({ error: 'Failed to open file' });
+            }
+            
+            res.json({ message: 'File opened successfully', path: filePath });
+        });
+        
+    } catch (error) {
+        console.error('Error opening file:', error);
+        res.status(500).json({ error: 'Failed to open file' });
+    }
 });
 
 // Get directory tree for file browser

@@ -128,3 +128,97 @@
     - Test UI responsiveness during database status updates
     - Test accessibility compliance of new visual elements
     - _Requirements: 1.1, 1.3, 1.4_
+
+- [x] 6. Implement scan history system
+
+
+
+  - [x] 6.1 Create JSON database for scan history
+
+
+    - Create `scan-history.json` file structure in project root
+    - Implement file reading/writing functions with error handling
+    - Add data validation for scan history records
+    - _Requirements: 4.2, 4.7_
+
+  - [x] 6.2 Create scan history API endpoints
+
+
+    - Implement `GET /api/scan-history` endpoint to retrieve history
+    - Add `addScanToHistory()` internal function for recording completed scans
+    - Include proper error handling and file locking for concurrent access
+    - _Requirements: 4.2, 4.7_
+
+  - [x] 6.3 Integrate history recording with existing scan system
+
+
+    - Modify `scanMultipleDirectoriesAsync()` to record scan completion
+    - Capture all required metrics (duration, thread count, file counts, etc.)
+    - Handle both successful and cancelled scan recordings
+    - _Requirements: 4.2, 4.3, 4.4, 4.5, 4.6_
+
+  - [x] 6.4 Create scan history UI tab
+
+
+    - Add "История сканирования" tab to main interface
+    - Create HTML structure for history display table
+    - Implement responsive design for history data presentation
+    - _Requirements: 4.1, 4.3, 4.4, 4.5, 4.6_
+
+  - [x] 6.5 Implement history display functionality
+
+
+    - Create `loadScanHistory()` function to fetch and display data
+    - Implement `renderScanHistory()` function for table generation
+    - Add date/time formatting and data visualization
+    - Include sorting and filtering capabilities for history records
+    - _Requirements: 4.1, 4.3, 4.4, 4.5, 4.6_
+
+- [x] 7. Implement hierarchical file display system
+
+
+
+  - [x] 7.1 Create file tree API endpoint
+
+
+    - Implement `GET /api/files/tree` endpoint for hierarchical data
+    - Create `buildFileTree()` algorithm to convert flat file list to tree structure
+    - Add search integration to filter tree results
+    - Optimize query performance for large directory structures
+    - _Requirements: 5.1, 5.2, 5.3, 5.5_
+
+  - [x] 7.2 Design tree display UI components
+
+
+    - Create CSS styles for hierarchical tree display
+    - Design expand/collapse icons and interaction states
+    - Ensure proper indentation and visual hierarchy
+    - Add responsive design for mobile devices
+    - _Requirements: 5.1, 5.2, 5.4_
+
+  - [x] 7.3 Implement tree rendering JavaScript
+
+
+    - Create `loadFileTree()` function to fetch tree data
+    - Implement `renderFileTree()` function for DOM generation
+    - Create `createTreeNode()` function for individual node creation
+    - Add `toggleNode()` function for expand/collapse functionality
+    - _Requirements: 5.1, 5.2, 5.4, 5.5_
+
+  - [x] 7.4 Replace existing file table with tree view
+
+
+    - Modify search tab to use tree display instead of flat table
+    - Maintain existing search functionality within tree structure
+    - Preserve file selection and action capabilities
+    - Ensure backward compatibility with existing file operations
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+
+  - [x] 7.5 Add tree interaction and navigation features
+
+
+    - Implement keyboard navigation for tree nodes
+    - Add context menus for file/folder operations
+    - Include breadcrumb navigation for current location
+    - Add "expand all" and "collapse all" functionality for tree sections
+    - _Requirements: 5.1, 5.4, 5.5_

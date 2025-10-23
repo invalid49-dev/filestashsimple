@@ -1,0 +1,70 @@
+{
+  "scans": [
+    {
+      "id": "1761223794204",
+      "startTime": "2025-10-23T12:49:54.204Z",
+      "endTime": "2025-10-23T12:50:03.660Z",
+      "duration": 9456,
+      "status": "completed",
+      "paths": [
+        "P:\\Буся Татуха"
+      ],
+      "threadCount": 29,
+      "filesProcessed": 3039,
+      "totalFound": 3039,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
+      "id": "1761217839558",
+      "startTime": "2025-10-23T11:10:39.558Z",
+      "endTime": "2025-10-23T11:11:07.646Z",
+      "duration": 28088,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\A\\Adora model"
+      ],
+      "threadCount": 30,
+      "filesProcessed": 3729,
+      "totalFound": 3729,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
+      "id": "1761217783734",
+      "startTime": "2025-10-23T11:09:43.734Z",
+      "endTime": "2025-10-23T11:09:43.737Z",
+      "duration": 3,
+      "status": "completed",
+      "paths": [
+        "C:\\inetpub"
+      ],
+      "threadCount": 30,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
+      "id": "1761217739494",
+      "startTime": "2025-10-23T11:08:59.494Z",
+      "endTime": "2025-10-23T11:09:07.515Z",
+      "duration": 8021,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\A\\AdelK"
+      ],
+      "threadCount": 30,
+      "filesProcessed": 1025,
+      "totalFound": 1025,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    }
+  ],
+  "version": "1.0",
+  "created": "2025-10-23T10:52:25.987Z"
+}

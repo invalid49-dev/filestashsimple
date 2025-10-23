@@ -10,6 +10,9 @@ This specification defines enhancements to the file manager interface to improve
 - **Database_Tracked_Files**: Files and folders that have been previously scanned and stored in the SQLite database
 - **Scanning_Operation**: The process of reading directory structures and storing file/folder information in the database
 - **UI_Controls**: Interactive elements in the file manager interface (buttons, indicators, etc.)
+- **Scan_History**: A persistent record of all completed scanning operations stored in JSON format
+- **Hierarchical_Tree**: A tree-like display structure that organizes files and folders in parent-child relationships
+- **JSON_Database**: A JSON file used to store scan history data persistently
 
 ## Requirements
 
@@ -46,3 +49,29 @@ This specification defines enhancements to the file manager interface to improve
 3. THE File_Manager SHALL hide the stop button when no Scanning_Operation is active
 4. WHEN a Scanning_Operation is stopped, THE File_Manager SHALL display a status message indicating the operation was cancelled
 5. THE File_Manager SHALL preserve any data that was successfully scanned before the operation was stopped
+
+### Requirement 4
+
+**User Story:** As a user, I want to view the history of all scanning operations, so that I can track when and what was scanned over time.
+
+#### Acceptance Criteria
+
+1. THE File_Manager SHALL provide a "Scan History" tab in the interface
+2. WHEN a Scanning_Operation completes, THE File_Manager SHALL record the scan details to a JSON file
+3. THE File_Manager SHALL display scan start date and time for each historical scan
+4. THE File_Manager SHALL display the list of scanned folders and files for each historical scan
+5. THE File_Manager SHALL display the total time spent on each scanning operation
+6. THE File_Manager SHALL display the number of threads used for each scanning operation
+7. THE File_Manager SHALL persist scan history data between application restarts
+
+### Requirement 5
+
+**User Story:** As a user, I want to see files organized in a hierarchical tree structure on the search tab, so that I can navigate through the file system like in a traditional file manager.
+
+#### Acceptance Criteria
+
+1. THE File_Manager SHALL display files in a hierarchical tree structure on the search tab
+2. THE File_Manager SHALL organize files alphabetically within each directory level
+3. WHEN displaying a file path like "P:\Photo\A\Alena model\", THE File_Manager SHALL show "Photo" as root, "A" as expandable child, and "Alena model" as expandable grandchild
+4. THE File_Manager SHALL provide expand/collapse functionality for each directory level
+5. THE File_Manager SHALL maintain the current search and filtering capabilities within the tree structure
