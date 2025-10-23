@@ -530,6 +530,287 @@
         .file-browser-item.in-database:hover {
             background-color: #d4edda;
         }
+
+        /* Scan history styles */
+        .history-table {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .history-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .history-table th,
+        .history-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .history-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .history-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-cancelled {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .paths-list {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .paths-list:hover {
+            white-space: normal;
+            word-break: break-all;
+        }
+
+        /* File tree styles */
+        .files-tree-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .tree-node {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            user-select: none;
+        }
+
+        .tree-node:hover {
+            background-color: #f8f9fa;
+        }
+
+        .tree-node.selected {
+            background-color: #e3f2fd;
+        }
+
+        .tree-node.directory {
+            font-weight: 500;
+        }
+
+        .tree-node.file {
+            font-weight: normal;
+            color: #666;
+        }
+
+        .tree-expand-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .tree-expand-icon:hover {
+            background-color: #e0e0e0;
+        }
+
+        .tree-expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+
+        .tree-icon {
+            margin-right: 8px;
+            font-size: 16px;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .tree-name {
+            flex: 1;
+            font-size: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .tree-size {
+            font-size: 12px;
+            color: #888;
+            margin-left: 10px;
+            min-width: 80px;
+            text-align: right;
+        }
+
+        .tree-db-indicator {
+            font-size: 12px;
+            color: #27ae60;
+            margin-left: 8px;
+            font-weight: bold;
+        }
+
+        .tree-node.in-database {
+            background-color: #f8fff8;
+        }
+
+        .tree-node.in-database:hover {
+            background-color: #e8f5e8;
+        }
+
+        .tree-checkbox {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .tree-checkbox-placeholder {
+            width: 16px;
+            margin-right: 8px;
+            display: inline-block;
+        }
+
+        .tree-actions-panel {
+            padding: 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            display: none;
+        }
+
+        .tree-actions-panel.show {
+            display: block;
+        }
+
+        .tree-actions-panel h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+
+        .tree-actions-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .tree-selected-count {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .context-menu {
+            min-width: 150px;
+        }
+
+        .context-menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .context-menu-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .context-menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .tree-children {
+            margin-left: 28px;
+            border-left: 1px solid #e0e0e0;
+            padding-left: 0;
+        }
+
+        .tree-children.collapsed {
+            display: none;
+        }
+
+        .tree-loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .tree-empty {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .tree-search-info {
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Tree node indentation levels */
+        .tree-node[data-level="0"] { padding-left: 12px; }
+        .tree-node[data-level="1"] { padding-left: 32px; }
+        .tree-node[data-level="2"] { padding-left: 52px; }
+        .tree-node[data-level="3"] { padding-left: 72px; }
+        .tree-node[data-level="4"] { padding-left: 92px; }
+        .tree-node[data-level="5"] { padding-left: 112px; }
+
+        /* Responsive design for tree */
+        @media (max-width: 768px) {
+            .files-tree-container {
+                max-height: 400px;
+            }
+            
+            .tree-node {
+                padding: 6px 8px;
+                font-size: 13px;
+            }
+            
+            .tree-size {
+                display: none;
+            }
+            
+            .tree-node[data-level="0"] { padding-left: 8px; }
+            .tree-node[data-level="1"] { padding-left: 24px; }
+            .tree-node[data-level="2"] { padding-left: 40px; }
+            .tree-node[data-level="3"] { padding-left: 56px; }
+            .tree-node[data-level="4"] { padding-left: 72px; }
+            .tree-node[data-level="5"] { padding-left: 88px; }
+        }
     </style>
 </head>
 <body>
@@ -542,7 +823,8 @@
         <!-- Tabs -->
         <div class="tabs">
             <button class="tab active" onclick="showTab('scan')">🔍 Сканирование</button>
-            <button class="tab" onclick="showTab('search')">🔎 Поиск файлов</button>
+            <button class="tab" onclick="showTab('search')">🗄️ База данных</button>
+            <button class="tab" onclick="showTab('history')">📊 История сканирования</button>
             <button class="tab" onclick="showTab('settings')">⚙️ Настройки</button>
         </div>
 
@@ -581,18 +863,36 @@
 
         <!-- Search Tab -->
         <div id="search-tab" class="tab-content">
-            <h2>Поиск файлов</h2>
+            <h2>База данных</h2>
             
             <div class="search-bar">
                 <input type="text" id="search-input" placeholder="Поиск по имени, пути, расширению или CRC32..." onkeyup="handleSearchKeyup(event)">
                 <button class="btn btn-primary" onclick="searchFiles()">🔍 Поиск</button>
-                <button class="btn btn-secondary" onclick="loadFiles()">🔄 Обновить</button>
-                <select id="page-size-select" onchange="changePageSize()" style="padding: 10px; margin-left: 10px;">
-                    <option value="50">50 на странице</option>
-                    <option value="100">100 на странице</option>
-                    <option value="150">150 на странице</option>
-                    <option value="200">200 на странице</option>
-                </select>
+                <button class="btn btn-secondary" onclick="refreshCurrentView()">🔄 Обновить</button>
+            </div>
+            
+            <!-- File Tree Container -->
+            <div id="files-tree-container" class="files-tree-container">
+                <div class="tree-controls" style="padding: 10px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; display: none;">
+                    <button class="btn btn-secondary" onclick="expandAllTreeNodes()" style="padding: 5px 10px; font-size: 12px; margin-right: 5px;">
+                        📂 Развернуть все
+                    </button>
+                    <button class="btn btn-secondary" onclick="collapseAllTreeNodes()" style="padding: 5px 10px; font-size: 12px;">
+                        📁 Свернуть все
+                    </button>
+                </div>
+                
+                <div id="tree-actions-panel" class="tree-actions-panel">
+                    <div id="tree-selected-count" class="tree-selected-count">0 элементов выбрано</div>
+                    <div class="tree-actions-buttons">
+                        <button class="btn btn-success" onclick="showCopyDialog()">📋 Копировать в</button>
+                        <button class="btn btn-warning" onclick="showMoveDialog()">📦 Переместить в</button>
+                        <button class="btn btn-danger" onclick="confirmDeleteTreeFiles()">🗑️ Удалить</button>
+                        <button class="btn btn-secondary" onclick="showArchiveDialog()">🗜️ Создать архив</button>
+                    </div>
+                </div>
+                
+                <div class="tree-loading">Загрузка файлового дерева...</div>
             </div>
             
             <div style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 6px;">
@@ -618,6 +918,20 @@
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="history-tab" class="tab-content">
+            <h2>История сканирования</h2>
+            
+            <div style="margin-bottom: 20px;">
+                <button class="btn btn-primary" onclick="loadScanHistory()">🔄 Обновить историю</button>
+                <button class="btn btn-secondary" onclick="clearScanHistory()">🗑️ Очистить историю</button>
+            </div>
+            
+            <div id="scan-history-container">
+                <div class="loading">Загрузка истории сканирования...</div>
             </div>
         </div>
 
@@ -691,8 +1005,10 @@
             </div>
         </div>
 
-        <!-- Files Table -->
-        <div class="files-table">
+
+
+        <!-- Files Table (hidden, only tree view used) -->
+        <div class="files-table" id="files-table-container" style="display: none;">
             <table>
                 <thead>
                     <tr>
@@ -716,8 +1032,8 @@
             </table>
         </div>
 
-        <!-- Pagination -->
-        <div class="pagination" id="pagination">
+        <!-- Pagination (hidden, not used in tree view) -->
+        <div class="pagination" id="pagination" style="display: none;">
             <button class="btn btn-secondary" onclick="previousPage()" id="prev-btn" disabled>← Назад</button>
             <span id="page-info">Страница 1 из 1</span>
             <button class="btn btn-secondary" onclick="nextPage()" id="next-btn" disabled>Вперед →</button>
@@ -737,6 +1053,108 @@
             <div style="text-align: right; margin-top: 20px;">
                 <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
                 <button class="btn btn-primary" id="modal-confirm-btn" onclick="confirmOperation()">Подтвердить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Archive Modal -->
+    <div id="archive-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Создание архива</h3>
+                <span class="close" onclick="closeArchiveModal()">&times;</span>
+            </div>
+            <div id="archive-body">
+                <div class="form-group">
+                    <label for="archive-destination">Папка для сохранения:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="archive-destination" placeholder="Выберите папку..." readonly>
+                        <button class="btn btn-secondary" onclick="browseArchiveDestination()">📂 Обзор</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="archive-name">Имя архива:</label>
+                    <input type="text" id="archive-name" placeholder="archive">
+                </div>
+                
+                <div class="form-group">
+                    <label for="archive-password">Пароль (необязательно):</label>
+                    <input type="password" id="archive-password" placeholder="Оставьте пустым для архива без пароля">
+                </div>
+                
+                <div class="form-group">
+                    <label for="archive-format">Формат архива:</label>
+                    <select id="archive-format">
+                        <option value="7z">7-Zip (.7z)</option>
+                        <option value="zip">ZIP (.zip)</option>
+                        <option value="rar">RAR (.rar)</option>
+                    </select>
+                </div>
+                
+                <div id="archive-files-list" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
+                    <!-- Files list will be populated here -->
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeArchiveModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="createArchive()">🗜️ Создать архив</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Archive Progress Modal -->
+    <div id="archive-progress-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Создание архива</h3>
+            </div>
+            <div id="archive-progress-body">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="archive-progress-fill" style="width: 0%;">0%</div>
+                </div>
+                <div id="archive-progress-status">Подготовка...</div>
+                <div id="archive-log" style="max-height: 300px; overflow-y: auto; background: #f8f9fa; border: 1px solid #ddd; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 12px; white-space: pre-wrap;">
+                    <!-- Archive log will be displayed here -->
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeArchiveProgressModal()" id="archive-close-btn" style="display: none;">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="tree-context-menu" class="context-menu" style="display: none; position: absolute; z-index: 1000; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 5px 0;">
+        <div class="context-menu-item" onclick="contextCopyFile()">📋 Копировать в</div>
+        <div class="context-menu-item" onclick="contextMoveFile()">📦 Переместить в</div>
+        <div class="context-menu-item" onclick="contextDeleteFile()">🗑️ Удалить</div>
+        <div class="context-menu-item" onclick="contextArchiveFile()">🗜️ Создать архив</div>
+    </div>
+
+    <!-- Copy/Move Destination Modal -->
+    <div id="destination-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="destination-modal-title">Выберите папку назначения</h3>
+                <span class="close" onclick="closeDestinationModal()">&times;</span>
+            </div>
+            <div id="destination-body">
+                <div class="form-group">
+                    <label for="destination-path">Папка назначения:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="destination-path" placeholder="Выберите папку..." readonly>
+                        <button class="btn btn-secondary" onclick="browseDestination()">📂 Обзор</button>
+                    </div>
+                </div>
+                
+                <div id="destination-files-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #f8f9fa;">
+                    <!-- Selected files list will be populated here -->
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeDestinationModal()">Отмена</button>
+                <button class="btn btn-primary" id="destination-confirm-btn" onclick="confirmDestinationOperation()">Выполнить</button>
             </div>
         </div>
     </div>

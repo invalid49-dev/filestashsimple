@@ -261,3 +261,313 @@ function monitorScanProgress(scanId) {
 - **Visual Indicators**: Ensure sufficient color contrast for green indicators
 - **Keyboard Navigation**: Maintain keyboard accessibility after button removal
 - **Screen Readers**: Add appropriate ARIA labels for new UI elements
+
+## 4. Scan History System
+
+### Backend Components
+
+**JSON Database File**: `./scan-history.json`
+```javascript
+// Scan history data structure
+{
+    "scans": [
+        {
+            "id": "scan_1698123456789",
+            "startTime": "2023-10-24T10:30:00.000Z",
+            "endTime": "2023-10-24T10:35:30.000Z",
+            "duration": 330000,
+            "status": "completed",
+            "paths": ["C:\\Users\\Documents", "D:\\Photos"],
+            "threadCount": 8,
+            "filesProcessed": 15420,
+            "foldersProcessed": 1250,
+            "totalSize": 2147483648,
+            "calculateCrc32": true,
+            "errors": []
+        }
+    ]
+}
+```
+
+**New API Endpoints**:
+```javascript
+// Get scan history
+app.get('/api/scan-history', (req, res) => {
+    // Read and return scan history from JSON file
+});
+
+// Add scan to history (called internally when scan completes)
+function addScanToHistory(scanData) {
+    // Append new scan record to JSON file
+}
+```
+
+**Integration with Existing Scan System**:
+```javascript
+// Modify scanMultipleDirectoriesAsync to record history
+async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calculateCrc32) {
+    // ... existing scanning logic
+    
+    // On completion, record to history
+    const scanRecord = {
+        id: scanId,
+        startTime: progress.startTime,
+        endTime: progress.endTime,
+        duration: progress.duration,
+        status: progress.status,
+        paths: rootPaths,
+        threadCount: threadCount,
+        filesProcessed: progress.processed,
+        // ... other metrics
+    };
+    
+    await addScanToHistory(scanRecord);
+}
+```
+
+### Frontend Components
+
+**New Tab in HTML**:
+```html
+<button class="tab" onclick="showTab('history')">📊 История сканирования</button>
+
+<div id="history-tab" class="tab-content">
+    <h2>История сканирования</h2>
+    <div id="scan-history-container">
+        <!-- Scan history will be populated here -->
+    </div>
+</div>
+```
+
+**History Display JavaScript**:
+```javascript
+// Load and display scan history
+async function loadScanHistory() {
+    const history = await apiCall('/scan-history');
+    renderScanHistory(history.scans);
+}
+
+// Render scan history table
+function renderScanHistory(scans) {
+    // Create table with columns:
+    // - Date/Time
+    // - Scanned Paths
+    // - Duration
+    // - Thread Count
+    // - Files/Folders Count
+    // - Status
+}
+```
+
+## 5. Hierarchical File Display System
+
+### Backend Components
+
+**New API Endpoint**: `/api/files/tree`
+```javascript
+app.get('/api/files/tree', (req, res) => {
+    const { search, rootPath } = req.query;
+    
+    // Query database to build hierarchical structure
+    const query = `
+        SELECT DISTINCT directory, filename, is_directory, full_path
+        FROM files 
+        WHERE full_path LIKE ? 
+        ORDER BY directory, is_directory DESC, filename ASC
+    `;
+    
+    // Build tree structure from flat file list
+    const tree = buildFileTree(rows);
+    res.json(tree);
+});
+```
+
+**Tree Building Algorithm**:
+```javascript
+function buildFileTree(files) {
+    const tree = {};
+    
+    files.forEach(file => {
+        const pathParts = file.full_path.split(path.sep);
+        let currentLevel = tree;
+        
+        pathParts.forEach((part, index) => {
+            if (!currentLevel[part]) {
+                currentLevel[part] = {
+                    name: part,
+                    path: pathParts.slice(0, index + 1).join(path.sep),
+                    isDirectory: index < pathParts.length - 1 || file.is_directory,
+                    children: {},
+                    files: []
+                };
+            }
+            
+            if (index === pathParts.length - 1 && !file.is_directory) {
+                currentLevel[part].files.push(file);
+            } else {
+                currentLevel = currentLevel[part].children;
+            }
+        });
+    });
+    
+    return tree;
+}
+```
+
+### Frontend Components
+
+**Tree Display HTML Structure**:
+```html
+<!-- Replace existing files table with tree view -->
+<div id="files-tree-container" class="files-tree">
+    <div id="files-tree-root">
+        <!-- Tree structure will be populated here -->
+    </div>
+</div>
+```
+
+**Tree Rendering CSS**:
+```css
+.files-tree {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.tree-node {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.tree-node.directory {
+    font-weight: 500;
+    background: #f8f9fa;
+}
+
+.tree-node.file {
+    padding-left: 30px;
+    font-size: 14px;
+}
+
+.tree-children {
+    margin-left: 20px;
+    border-left: 2px solid #ecf0f1;
+}
+
+.expand-icon {
+    display: inline-block;
+    width: 16px;
+    margin-right: 8px;
+    text-align: center;
+    cursor: pointer;
+}
+```
+
+**Tree Interaction JavaScript**:
+```javascript
+// Load and render file tree
+async function loadFileTree(searchQuery = '') {
+    const tree = await apiCall(`/files/tree?search=${encodeURIComponent(searchQuery)}`);
+    renderFileTree(tree);
+}
+
+// Render tree structure
+function renderFileTree(treeData) {
+    const container = document.getElementById('files-tree-root');
+    container.innerHTML = '';
+    
+    Object.values(treeData).forEach(node => {
+        const nodeElement = createTreeNode(node);
+        container.appendChild(nodeElement);
+    });
+}
+
+// Create individual tree node
+function createTreeNode(node) {
+    const nodeDiv = document.createElement('div');
+    nodeDiv.className = 'tree-node';
+    
+    if (node.isDirectory) {
+        nodeDiv.className += ' directory';
+        nodeDiv.innerHTML = `
+            <span class="expand-icon" onclick="toggleNode(this)">▶</span>
+            <span class="folder-icon">📁</span>
+            <span class="node-name">${node.name}</span>
+        `;
+        
+        // Add children container
+        const childrenDiv = document.createElement('div');
+        childrenDiv.className = 'tree-children';
+        childrenDiv.style.display = 'none';
+        
+        Object.values(node.children).forEach(child => {
+            childrenDiv.appendChild(createTreeNode(child));
+        });
+        
+        node.files.forEach(file => {
+            const fileNode = createFileNode(file);
+            childrenDiv.appendChild(fileNode);
+        });
+        
+        nodeDiv.appendChild(childrenDiv);
+    }
+    
+    return nodeDiv;
+}
+
+// Toggle node expansion
+function toggleNode(expandIcon) {
+    const childrenDiv = expandIcon.parentElement.querySelector('.tree-children');
+    if (childrenDiv.style.display === 'none') {
+        childrenDiv.style.display = 'block';
+        expandIcon.textContent = '▼';
+    } else {
+        childrenDiv.style.display = 'none';
+        expandIcon.textContent = '▶';
+    }
+}
+```
+
+## Enhanced Data Models
+
+### Scan History Record Model
+```javascript
+{
+    id: "scan_1698123456789",
+    startTime: "2023-10-24T10:30:00.000Z",
+    endTime: "2023-10-24T10:35:30.000Z", 
+    duration: 330000, // milliseconds
+    status: "completed" | "cancelled" | "error",
+    paths: ["C:\\Users\\Documents", "D:\\Photos"],
+    threadCount: 8,
+    filesProcessed: 15420,
+    foldersProcessed: 1250,
+    totalSize: 2147483648, // bytes
+    calculateCrc32: true,
+    errors: ["Error message 1", "Error message 2"]
+}
+```
+
+### File Tree Node Model
+```javascript
+{
+    name: "Documents",
+    path: "C:\\Users\\Documents",
+    isDirectory: true,
+    children: {
+        "Photos": { /* nested node */ },
+        "Videos": { /* nested node */ }
+    },
+    files: [
+        {
+            id: 123,
+            filename: "document.pdf",
+            full_path: "C:\\Users\\Documents\\document.pdf",
+            size: 1024000,
+            // ... other file properties
+        }
+    ]
+}
+```
