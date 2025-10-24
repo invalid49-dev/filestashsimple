@@ -1,6 +1,134 @@
 {
   "scans": [
     {
+      "id": "1761310340068",
+      "startTime": "2025-10-24T12:52:20.068Z",
+      "endTime": "2025-10-24T12:52:20.111Z",
+      "duration": 43,
+      "status": "completed",
+      "paths": [
+        "P:\\Буся Татуха"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 2,
+      "totalFound": 2,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
+      "id": "1761310303087",
+      "startTime": "2025-10-24T12:51:43.087Z",
+      "endTime": "2025-10-24T12:51:43.135Z",
+      "duration": 48,
+      "status": "completed",
+      "paths": [
+        "P:\\Буся Татуха"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 2,
+      "totalFound": 2,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
+      "id": "1761309544077",
+      "startTime": "2025-10-24T12:39:04.077Z",
+      "endTime": "2025-10-24T12:39:04.129Z",
+      "duration": 52,
+      "status": "completed",
+      "paths": [
+        "P:\\Буся Татуха"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 2,
+      "totalFound": 2,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
+      "id": "1761309114655",
+      "startTime": "2025-10-24T12:31:54.655Z",
+      "endTime": "2025-10-24T12:31:54.784Z",
+      "duration": 129,
+      "status": "completed",
+      "paths": [
+        "P:\\Буся Татуха"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 2,
+      "totalFound": 2,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
+      "id": "1761308566228",
+      "startTime": "2025-10-24T12:22:46.228Z",
+      "endTime": "2025-10-24T12:22:46.276Z",
+      "duration": 48,
+      "status": "completed",
+      "paths": [
+        "P:\\Буся Татуха"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 2,
+      "totalFound": 2,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
+      "id": "1761308339504",
+      "startTime": "2025-10-24T12:18:59.504Z",
+      "endTime": "2025-10-24T12:18:59.616Z",
+      "duration": 112,
+      "status": "completed",
+      "paths": [
+        "P:\\Буся Татуха"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 2,
+      "totalFound": 2,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
+      "id": "1761306655348",
+      "startTime": "2025-10-24T11:50:55.348Z",
+      "endTime": "2025-10-24T11:50:55.425Z",
+      "duration": 77,
+      "status": "completed",
+      "paths": [
+        "P:\\Буся Татуха"
+      ],
+      "threadCount": 22,
+      "filesProcessed": 2,
+      "totalFound": 2,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
+      "id": "1761306562517",
+      "startTime": "2025-10-24T11:49:22.517Z",
+      "endTime": "2025-10-24T11:49:22.815Z",
+      "duration": 298,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\All Ls Land Torrents"
+      ],
+      "threadCount": 22,
+      "filesProcessed": 33,
+      "totalFound": 33,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false
+    },
+    {
       "id": "1761223794204",
       "startTime": "2025-10-23T12:49:54.204Z",
       "endTime": "2025-10-23T12:50:03.660Z",

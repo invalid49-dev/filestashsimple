@@ -970,11 +970,25 @@
             </div>
             
             <div class="form-group">
+                <h3>Синхронизация с файловой системой</h3>
+                <label>
+                    <input type="checkbox" id="monitoring-enabled" onchange="toggleFileSystemMonitoring()" checked>
+                    Автоматически удалять из базы данных записи о удаленных файлах
+                </label>
+                <p style="margin-top: 10px; color: #7f8c8d; font-size: 14px;">
+                    При включении этой опции система будет отслеживать изменения в файловой системе и автоматически удалять из базы данных записи о файлах, которые были удалены или перемещены вне приложения.
+                </p>
+            </div>
+            
+            <div class="form-group">
                 <h3>Управление базой данных</h3>
                 <button class="btn btn-success" onclick="backupDatabase()">💾 Создать резервную копию</button>
+                <button class="btn btn-warning" onclick="cleanupDatabase()">🧹 Очистить несуществующие файлы</button>
                 <button class="btn btn-danger" onclick="clearDatabase()">🗑️ Очистить базу данных</button>
                 <p style="margin-top: 10px; color: #7f8c8d; font-size: 14px;">
-                    Резервная копия сохраняется в JSON формате. Очистка удалит все записи из базы данных, но не затронет реальные файлы.
+                    <strong>Очистка несуществующих файлов</strong> удалит из базы записи о файлах, которые больше не существуют на диске.<br>
+                    <strong>Резервная копия</strong> сохраняется в JSON формате.<br>
+                    <strong>Полная очистка</strong> удалит все записи из базы данных, но не затронет реальные файлы.
                 </p>
             </div>
             
@@ -1068,7 +1082,7 @@
                 <div class="form-group">
                     <label for="archive-destination">Папка для сохранения:</label>
                     <div style="display: flex; gap: 10px;">
-                        <input type="text" id="archive-destination" placeholder="Выберите папку..." readonly>
+                        <input type="text" id="archive-destination" placeholder="Введите путь или нажмите Обзор...">
                         <button class="btn btn-secondary" onclick="browseArchiveDestination()">📂 Обзор</button>
                     </div>
                 </div>
@@ -1084,12 +1098,25 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="archive-format">Формат архива:</label>
-                    <select id="archive-format">
-                        <option value="7z">7-Zip (.7z)</option>
-                        <option value="zip">ZIP (.zip)</option>
-                        <option value="rar">RAR (.rar)</option>
+                    <label for="archive-compression">Степень сжатия:</label>
+                    <select id="archive-compression">
+                        <option value="0">Без сжатия</option>
+                        <option value="1">Быстрое</option>
+                        <option value="3" selected>Нормальное</option>
+                        <option value="5">Максимальное</option>
                     </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="archive-multivolume" onchange="toggleMultivolume()">
+                        Многотомный архив
+                    </label>
+                </div>
+                
+                <div class="form-group" id="volume-size-group" style="display: none;">
+                    <label for="archive-volume-size">Размер тома (МБ):</label>
+                    <input type="number" id="archive-volume-size" placeholder="100" min="1" max="4096">
                 </div>
                 
                 <div id="archive-files-list" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
@@ -1143,7 +1170,7 @@
                 <div class="form-group">
                     <label for="destination-path">Папка назначения:</label>
                     <div style="display: flex; gap: 10px;">
-                        <input type="text" id="destination-path" placeholder="Выберите папку..." readonly>
+                        <input type="text" id="destination-path" placeholder="Введите путь или нажмите Обзор...">
                         <button class="btn btn-secondary" onclick="browseDestination()">📂 Обзор</button>
                     </div>
                 </div>
@@ -1179,6 +1206,8 @@
         </div>
     </div>
 
+
+    
     <script src="app.js"></script>
 </body>
 </html>

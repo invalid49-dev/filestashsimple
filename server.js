@@ -8,6 +8,8 @@ const crypto = require('crypto');
 const archiver = require('archiver');
 const net = require('net');
 const open = require('open');
+const iconv = require('iconv-lite');
+const chokidar = require('chokidar');
 
 const app = express();
 let PORT = 3000;
@@ -19,6 +21,96 @@ app.use(express.static('public'));
 
 // Initialize SQLite database
 const db = new sqlite3.Database('./filestash.db');
+
+// File system watchers
+const watchers = new Map();
+let isWatchingEnabled = false;
+
+// Function to start watching a directory
+function startWatchingDirectory(dirPath) {
+    if (watchers.has(dirPath)) {
+        return; // Already watching
+    }
+    
+    console.log('Starting to watch directory:', dirPath);
+    
+    const watcher = chokidar.watch(dirPath, {
+        ignored: /(^|[\/\\])\../, // ignore dotfiles
+        persistent: true,
+        ignoreInitial: true,
+        depth: 10 // Limit depth to prevent performance issues
+    });
+    
+    watcher
+        .on('unlink', (filePath) => {
+            console.log('File deleted:', filePath);
+            removeFileFromDatabase(filePath);
+        })
+        .on('unlinkDir', (dirPath) => {
+            console.log('Directory deleted:', dirPath);
+            removeDirectoryFromDatabase(dirPath);
+        })
+        .on('error', (error) => {
+            console.error('Watcher error:', error);
+        });
+    
+    watchers.set(dirPath, watcher);
+}
+
+// Function to stop watching a directory
+function stopWatchingDirectory(dirPath) {
+    const watcher = watchers.get(dirPath);
+    if (watcher) {
+        watcher.close();
+        watchers.delete(dirPath);
+        console.log('Stopped watching directory:', dirPath);
+    }
+}
+
+// Function to remove file from database
+function removeFileFromDatabase(filePath) {
+    db.run('DELETE FROM files WHERE full_path = ?', [filePath], function(err) {
+        if (err) {
+            console.error('Error removing file from database:', err);
+        } else if (this.changes > 0) {
+            console.log('Removed file from database:', filePath);
+        }
+    });
+}
+
+// Function to remove directory and all its contents from database
+function removeDirectoryFromDatabase(dirPath) {
+    db.run('DELETE FROM files WHERE full_path LIKE ?', [dirPath + '%'], function(err) {
+        if (err) {
+            console.error('Error removing directory from database:', err);
+        } else if (this.changes > 0) {
+            console.log(`Removed directory and ${this.changes} files from database:`, dirPath);
+        }
+    });
+}
+
+// Function to start watching all scanned directories
+function startWatchingScannedDirectories() {
+    if (!isWatchingEnabled) {
+        isWatchingEnabled = true;
+        
+        // Get all unique directories from database
+        db.all('SELECT DISTINCT directory FROM files', (err, rows) => {
+            if (err) {
+                console.error('Error getting directories for watching:', err);
+                return;
+            }
+            
+            rows.forEach(row => {
+                if (row.directory && fs.existsSync(row.directory)) {
+                    startWatchingDirectory(row.directory);
+                }
+            });
+            
+            console.log(`Started watching ${rows.length} directories`);
+        });
+    }
+}
 
 // Create tables with optimizations
 db.serialize(() => {
@@ -897,14 +989,54 @@ app.get('/api/files/tree', (req, res) => {
     
     query += ' ORDER BY directory ASC, is_directory DESC, filename ASC';
     
-    db.all(query, params, (err, rows) => {
+    db.all(query, params, async (err, rows) => {
         if (err) {
             console.error('Tree query error:', err);
             return res.status(500).json({ error: err.message });
         }
         
         try {
-            const tree = buildFileTree(rows);
+            // Check if files exist and remove non-existent ones
+            const existingFiles = [];
+            const filesToRemove = [];
+            
+            for (const row of rows) {
+                try {
+                    if (fs.existsSync(row.full_path)) {
+                        existingFiles.push(row);
+                    } else {
+                        filesToRemove.push(row.id);
+                    }
+                } catch (checkError) {
+                    // If we can't check, assume it doesn't exist
+                    filesToRemove.push(row.id);
+                }
+            }
+            
+            // Remove non-existent files from database
+            if (filesToRemove.length > 0) {
+                console.log(`Removing ${filesToRemove.length} non-existent files from database`);
+                const placeholders = filesToRemove.map(() => '?').join(',');
+                const deleteQuery = `DELETE FROM files WHERE id IN (${placeholders})`;
+                
+                db.run(deleteQuery, filesToRemove, function(deleteErr) {
+                    if (deleteErr) {
+                        console.error('Error removing non-existent files:', deleteErr);
+                    } else {
+                        console.log(`Removed ${this.changes} non-existent files from database`);
+                    }
+                });
+            }
+            
+            const tree = buildFileTree(existingFiles);
+            
+            // Prevent caching
+            res.set({
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            });
+            
             res.json(tree);
         } catch (buildError) {
             console.error('Tree building error:', buildError);
@@ -955,6 +1087,14 @@ app.get('/api/stats', (req, res) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
+        
+        // Prevent caching
+        res.set({
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        });
+        
         res.json(rows[0]);
     });
 });
@@ -1297,6 +1437,226 @@ app.post('/api/files/delete', async (req, res) => {
     }
 });
 
+// Enhanced delete files (removes from both disk and database)
+app.post('/api/files/delete-enhanced', async (req, res) => {
+    const { fileIds } = req.body;
+    
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+        return res.status(400).json({ error: 'File IDs are required' });
+    }
+    
+    try {
+        const results = [];
+        
+        for (const fileId of fileIds) {
+            const file = await new Promise((resolve, reject) => {
+                db.get('SELECT * FROM files WHERE id = ?', [fileId], (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row);
+                });
+            });
+            
+            if (file) {
+                try {
+                    // Delete from disk if exists
+                    if (fs.existsSync(file.full_path)) {
+                        if (file.is_directory) {
+                            await fse.remove(file.full_path);
+                            console.log(`Deleted directory from disk: ${file.full_path}`);
+                        } else {
+                            await fse.remove(file.full_path);
+                            console.log(`Deleted file from disk: ${file.full_path}`);
+                        }
+                    }
+                    
+                    // Delete from database
+                    await new Promise((resolve, reject) => {
+                        if (file.is_directory) {
+                            // Delete all files in this directory from database
+                            db.run('DELETE FROM files WHERE full_path LIKE ?', [`${file.full_path}%`], function(err) {
+                                if (err) reject(err);
+                                else {
+                                    console.log(`Deleted ${this.changes} records from database for directory: ${file.full_path}`);
+                                    resolve();
+                                }
+                            });
+                        } else {
+                            // Delete single file from database
+                            db.run('DELETE FROM files WHERE id = ?', [fileId], function(err) {
+                                if (err) reject(err);
+                                else {
+                                    console.log(`Deleted file record from database: ${file.full_path}`);
+                                    resolve();
+                                }
+                            });
+                        }
+                    });
+                    
+                    results.push({ 
+                        id: fileId, 
+                        status: 'success', 
+                        path: file.full_path,
+                        type: file.is_directory ? 'directory' : 'file'
+                    });
+                    
+                } catch (error) {
+                    console.error(`Error deleting ${file.full_path}:`, error);
+                    results.push({ 
+                        id: fileId, 
+                        status: 'error', 
+                        error: error.message,
+                        path: file.full_path
+                    });
+                }
+            } else {
+                results.push({ 
+                    id: fileId, 
+                    status: 'error', 
+                    error: 'File not found in database'
+                });
+            }
+        }
+        
+        res.json({ message: 'Enhanced delete operation completed', results });
+        
+    } catch (error) {
+        console.error('Enhanced delete operation failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Remove files from database only (for moved files)
+app.post('/api/files/remove-from-database', async (req, res) => {
+    const { fileIds } = req.body;
+    
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+        return res.status(400).json({ error: 'File IDs are required' });
+    }
+    
+    try {
+        console.log('Removing files from database:', fileIds);
+        
+        // Remove files from database
+        const placeholders = fileIds.map(() => '?').join(',');
+        const deleteQuery = `DELETE FROM files WHERE id IN (${placeholders})`;
+        
+        await new Promise((resolve, reject) => {
+            db.run(deleteQuery, fileIds, function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    console.log(`Removed ${this.changes} files from database`);
+                    resolve();
+                }
+            });
+        });
+        
+        res.json({ 
+            message: 'Files removed from database successfully',
+            removedCount: fileIds.length
+        });
+        
+    } catch (error) {
+        console.error('Remove from database operation failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Clean up database - remove records for files that no longer exist on disk
+app.post('/api/files/cleanup-database', async (req, res) => {
+    try {
+        console.log('Starting database cleanup...');
+        
+        // Get all files from database
+        const allFiles = await new Promise((resolve, reject) => {
+            db.all('SELECT id, full_path FROM files', (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+        
+        console.log(`Checking ${allFiles.length} files...`);
+        
+        const filesToRemove = [];
+        let checkedCount = 0;
+        
+        // Check each file if it exists on disk
+        for (const file of allFiles) {
+            checkedCount++;
+            if (checkedCount % 100 === 0) {
+                console.log(`Checked ${checkedCount}/${allFiles.length} files...`);
+            }
+            
+            try {
+                if (!fs.existsSync(file.full_path)) {
+                    filesToRemove.push(file.id);
+                }
+            } catch (error) {
+                // If we can't check the file, assume it doesn't exist
+                filesToRemove.push(file.id);
+            }
+        }
+        
+        console.log(`Found ${filesToRemove.length} files to remove from database`);
+        
+        if (filesToRemove.length > 0) {
+            // Remove non-existent files from database
+            const placeholders = filesToRemove.map(() => '?').join(',');
+            const deleteQuery = `DELETE FROM files WHERE id IN (${placeholders})`;
+            
+            await new Promise((resolve, reject) => {
+                db.run(deleteQuery, filesToRemove, function(err) {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        console.log(`Removed ${this.changes} files from database`);
+                        resolve();
+                    }
+                });
+            });
+        }
+        
+        res.json({ 
+            message: 'Database cleanup completed',
+            totalFiles: allFiles.length,
+            removedFiles: filesToRemove.length,
+            remainingFiles: allFiles.length - filesToRemove.length
+        });
+        
+    } catch (error) {
+        console.error('Database cleanup failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Enable/disable file system monitoring
+app.post('/api/files/toggle-monitoring', (req, res) => {
+    const { enabled } = req.body;
+    
+    if (enabled && !isWatchingEnabled) {
+        startWatchingScannedDirectories();
+        res.json({ message: 'File system monitoring enabled', enabled: true });
+    } else if (!enabled && isWatchingEnabled) {
+        // Stop all watchers
+        watchers.forEach((watcher, dirPath) => {
+            stopWatchingDirectory(dirPath);
+        });
+        isWatchingEnabled = false;
+        res.json({ message: 'File system monitoring disabled', enabled: false });
+    } else {
+        res.json({ message: 'Monitoring state unchanged', enabled: isWatchingEnabled });
+    }
+});
+
+// Get monitoring status
+app.get('/api/files/monitoring-status', (req, res) => {
+    res.json({ 
+        enabled: isWatchingEnabled,
+        watchedDirectories: Array.from(watchers.keys()),
+        watcherCount: watchers.size
+    });
+});
+
 // Check for external archivers
 function checkArchivers() {
     const { execSync } = require('child_process');
@@ -1610,6 +1970,194 @@ app.post('/api/files/archive-enhanced', async (req, res) => {
     }
 });
 
+// WinRAR archive creation with full control
+app.post('/api/files/archive-winrar', async (req, res) => {
+    const { fileIds, archiveName, destination, password, compression, isMultivolume, volumeSize } = req.body;
+    
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+        return res.status(400).json({ error: 'File IDs are required' });
+    }
+    
+    if (!archiveName || !destination) {
+        return res.status(400).json({ error: 'Archive name and destination are required' });
+    }
+    
+    try {
+        // Ensure destination directory exists
+        await fse.ensureDir(destination);
+        
+        // Get file paths
+        const filePaths = [];
+        const errors = [];
+        
+        for (const fileId of fileIds) {
+            const file = await new Promise((resolve, reject) => {
+                db.get('SELECT * FROM files WHERE id = ?', [fileId], (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row);
+                });
+            });
+            
+            if (file && fs.existsSync(file.full_path)) {
+                filePaths.push(file.full_path);
+            } else {
+                errors.push(`File not found: ${file ? file.filename : 'Unknown'}`);
+            }
+        }
+        
+        if (filePaths.length === 0) {
+            return res.status(400).json({ error: 'No valid files found' });
+        }
+        
+        // Check for WinRAR
+        const winrarPath = 'C:\\Program Files\\WinRAR\\Rar.exe';
+        console.log('Checking WinRAR at:', winrarPath);
+        
+        if (!fs.existsSync(winrarPath)) {
+            console.error('WinRAR not found at:', winrarPath);
+            return res.status(400).json({ 
+                error: 'WinRAR not found at expected location',
+                suggestion: 'Install WinRAR or check path: C:\\Program Files\\WinRAR\\Rar.exe',
+                checkedPath: winrarPath
+            });
+        }
+        
+        console.log('WinRAR found successfully');
+        
+        const archivePath = path.join(destination, `${archiveName}.rar`);
+        
+        // Build WinRAR command
+        const command = [winrarPath, 'a', '-y', '-ep1', '-ibck'];
+        
+        // Add compression level
+        command.push(`-m${compression}`);
+        
+        // Add password if provided
+        if (password) {
+            command.push(`-hp${password}`);
+        }
+        
+        // Add multivolume if enabled
+        if (isMultivolume && volumeSize) {
+            command.push(`-v${volumeSize}m`);
+        }
+        
+        // Add archive path
+        command.push(`"${archivePath}"`);
+        
+        // Add file paths
+        filePaths.forEach(filePath => {
+            command.push(`"${filePath}"`);
+        });
+        
+        // Build command string for exec
+        const commandStr = `"${winrarPath}" a -y -ep1 -ibck -m${compression}${password ? ` -hp${password}` : ''}${isMultivolume && volumeSize ? ` -v${volumeSize}m` : ''} "${archivePath}" ${filePaths.map(p => `"${p}"`).join(' ')}`;
+        
+        console.log('Executing WinRAR command:', commandStr);
+        console.log('Files to archive:', filePaths);
+        console.log('Archive destination:', archivePath);
+        
+        // Execute WinRAR with spawn for better encoding handling
+        const { spawn } = require('child_process');
+        const iconv = require('iconv-lite');
+        
+        let progressOutput = '';
+        let errorOutput = '';
+        
+        await new Promise((resolve, reject) => {
+            // Use spawn with proper encoding handling
+            const archiveProcess = spawn(winrarPath, [
+                'a', '-y', '-ep1', '-ibck', `-m${compression}`,
+                ...(password ? [`-hp${password}`] : []),
+                ...(isMultivolume && volumeSize ? [`-v${volumeSize}m`] : []),
+                archivePath,
+                ...filePaths
+            ], {
+                windowsHide: true,
+                stdio: ['pipe', 'pipe', 'pipe']
+            });
+            
+            // Handle stdout with proper encoding
+            archiveProcess.stdout.on('data', (data) => {
+                // Convert from Windows-1251 to UTF-8
+                const decoded = iconv.decode(data, 'cp1251');
+                progressOutput += decoded;
+                console.log('WinRAR stdout:', decoded.trim());
+            });
+            
+            // Handle stderr with proper encoding
+            archiveProcess.stderr.on('data', (data) => {
+                // Convert from Windows-1251 to UTF-8
+                const decoded = iconv.decode(data, 'cp1251');
+                errorOutput += decoded;
+                console.log('WinRAR stderr:', decoded.trim());
+            });
+            
+            archiveProcess.on('close', (code) => {
+                if (code === 0) {
+                    console.log('WinRAR completed successfully');
+                    resolve();
+                } else {
+                    console.error('WinRAR execution error, exit code:', code);
+                    reject(new Error(`WinRAR failed with exit code ${code}. Error: ${errorOutput}`));
+                }
+            });
+            
+            archiveProcess.on('error', (error) => {
+                console.error('WinRAR process error:', error);
+                reject(error);
+            });
+        });
+        
+        // Get archive stats
+        let totalSize = 0;
+        let archiveFiles = [];
+        
+        if (isMultivolume) {
+            // For multivolume, find all parts
+            const baseName = path.basename(archivePath, '.rar');
+            const dirName = path.dirname(archivePath);
+            const files = fs.readdirSync(dirName);
+            
+            files.forEach(file => {
+                if (file.startsWith(baseName) && (file.endsWith('.rar') || file.match(/\.r\d+$/))) {
+                    const filePath = path.join(dirName, file);
+                    const stats = fs.statSync(filePath);
+                    totalSize += stats.size;
+                    archiveFiles.push(file);
+                }
+            });
+        } else {
+            const stats = fs.statSync(archivePath);
+            totalSize = stats.size;
+            archiveFiles.push(path.basename(archivePath));
+        }
+        
+        res.json({
+            message: `WinRAR archive created successfully`,
+            archiveName: archiveFiles.join(', '),
+            archivePath: archivePath,
+            filesAdded: filePaths.length,
+            archiveSize: totalSize,
+            compression: compression,
+            passwordProtected: !!password,
+            multivolume: isMultivolume,
+            volumeCount: archiveFiles.length,
+            log: progressOutput,
+            errors: errors.length > 0 ? errors : undefined
+        });
+        
+    } catch (error) {
+        console.error('WinRAR archive creation failed:', error);
+        res.status(500).json({ 
+            error: `WinRAR archive creation failed: ${error.message}`,
+            suggestion: 'Make sure WinRAR is installed at C:\\Program Files\\WinRAR\\Rar.exe'
+        });
+    }
+});
+
+// Check for external archivers
+
 // Open file (returns file info for client to handle)
 app.get('/api/files/:id/open', (req, res) => {
     const { id } = req.params;
@@ -1843,6 +2391,11 @@ async function startServer() {
             console.log(`   Archives: ./archives/`);
             console.log(`   Backups: ./backups/`);
             console.log(`\n🎯 Ready to use! Press Ctrl+C to stop the server`);
+            
+            // Start file system monitoring after a short delay
+            setTimeout(() => {
+                startWatchingScannedDirectories();
+            }, 2000);
         });
         
         // Handle server errors
