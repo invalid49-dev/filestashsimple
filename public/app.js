@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 FileStash Simple initialized');
     loadDrives();
     loadStats();
+    loadMonitoringStatus();
     
     // Initialize tree keyboard navigation
     addTreeKeyboardNavigation();
@@ -634,18 +635,33 @@ function showArchiveModal(selectedFiles) {
     // Generate archive name from selected files with current date
     let baseName;
     if (selectedFiles.length === 1) {
-        // Single file/folder - use its name
-        baseName = selectedFiles[0].path.split(/[\\\/]/).pop().replace(/\.[^/.]+$/, "");
+        // Single file/folder - use only the last part of the path
+        const pathParts = selectedFiles[0].path.split(/[\\\/]/).filter(part => part.length > 0);
+        baseName = pathParts[pathParts.length - 1].replace(/\.[^/.]+$/, "");
     } else {
-        // Multiple files - use generic name
-        baseName = "selected_files";
+        // Multiple files - use "Files"
+        baseName = "Files";
     }
     
-    const currentDate = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    archiveName.value = `${baseName}_${currentDate}`;
+    // Clean base name - remove invalid filename characters
+    baseName = baseName.replace(/[<>:"/\\|?*]/g, '_');
+    
+    // Format date as DD.MM.YYYY
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const dateStr = `${day}.${month}.${year}`;
+    
+    archiveName.value = `${baseName}(${dateStr})`;
     
     // Set default destination
     destination.value = 'C:\\FileStash-Archives';
+    
+    // Reset multivolume settings
+    document.getElementById('archive-multivolume').checked = false;
+    document.getElementById('volume-size-group').style.display = 'none';
+    document.getElementById('archive-compression').value = '3';
     
     // Populate files list with better formatting
     filesList.innerHTML = '<h4>Файлы для архивации:</h4>' + 
@@ -666,12 +682,19 @@ function closeArchiveModal() {
 
 // Browse for archive destination
 function browseArchiveDestination() {
-    // For now, set a default destination
-    const destination = document.getElementById('archive-destination');
-    destination.value = 'C:\\FileStash-Archives';
+    showFolderBrowserModal('archive-destination');
+}
+
+// Toggle multivolume archive options
+function toggleMultivolume() {
+    const checkbox = document.getElementById('archive-multivolume');
+    const volumeGroup = document.getElementById('volume-size-group');
     
-    // In a real implementation, this would open a folder browser dialog
-    showMessage('Выберите папку для сохранения архива', 'info');
+    if (checkbox.checked) {
+        volumeGroup.style.display = 'block';
+    } else {
+        volumeGroup.style.display = 'none';
+    }
 }
 
 // Create archive with enhanced options
@@ -679,7 +702,9 @@ async function createArchive() {
     const destination = document.getElementById('archive-destination').value;
     const archiveName = document.getElementById('archive-name').value;
     const password = document.getElementById('archive-password').value;
-    const format = document.getElementById('archive-format').value;
+    const compression = document.getElementById('archive-compression').value;
+    const isMultivolume = document.getElementById('archive-multivolume').checked;
+    const volumeSize = document.getElementById('archive-volume-size').value;
     
     if (!destination) {
         showMessage('Выберите папку для сохранения', 'error');
@@ -688,6 +713,11 @@ async function createArchive() {
     
     if (!archiveName) {
         showMessage('Введите имя архива', 'error');
+        return;
+    }
+    
+    if (isMultivolume && (!volumeSize || volumeSize < 1)) {
+        showMessage('Укажите размер тома для многотомного архива', 'error');
         return;
     }
     
@@ -711,16 +741,18 @@ async function createArchive() {
             return;
         }
         
-        appendArchiveLog(`📦 Архивация ${fileIds.length} файлов...`);
+        appendArchiveLog(`📦 Архивация ${fileIds.length} файлов с помощью WinRAR...`);
         
-        const result = await apiCall('/files/archive-enhanced', {
+        const result = await apiCall('/files/archive-winrar', {
             method: 'POST',
             body: JSON.stringify({
                 fileIds: fileIds,
                 archiveName: archiveName,
                 destination: destination,
                 password: password,
-                format: format
+                compression: compression,
+                isMultivolume: isMultivolume,
+                volumeSize: volumeSize
             })
         });
         
@@ -728,6 +760,10 @@ async function createArchive() {
         appendArchiveLog(`✅ Архив создан: ${result.archiveName}`);
         appendArchiveLog(`📁 Размер: ${formatBytes(result.archiveSize)}`);
         appendArchiveLog(`📍 Расположение: ${result.archivePath}`);
+        
+        if (result.log) {
+            appendArchiveLog(`\n📋 Лог WinRAR:\n${result.log}`);
+        }
         
         document.getElementById('archive-close-btn').style.display = 'inline-block';
         
@@ -783,11 +819,19 @@ function appendArchiveLog(message) {
 
 // Show destination modal for copy/move operations
 function showDestinationModal(title, buttonText) {
+    console.log('showDestinationModal called:', title, buttonText);
+    console.log('selectedTreeFiles for modal:', Array.from(selectedTreeFiles));
+    
     const modal = document.getElementById('destination-modal');
     const modalTitle = document.getElementById('destination-modal-title');
     const confirmBtn = document.getElementById('destination-confirm-btn');
     const filesList = document.getElementById('destination-files-list');
     const destinationPath = document.getElementById('destination-path');
+    
+    if (!modal) {
+        console.error('destination-modal not found!');
+        return;
+    }
     
     modalTitle.textContent = title;
     confirmBtn.textContent = buttonText;
@@ -815,17 +859,217 @@ function closeDestinationModal() {
 
 // Browse for destination folder
 function browseDestination() {
-    // For now, set some common destinations as examples
-    const destinations = [
-        'C:\\FileStash-Copy',
-        'C:\\Users\\' + (process.env.USERNAME || 'User') + '\\Desktop',
-        'C:\\Temp',
-        'D:\\Backup'
-    ];
+    // Create a simple folder browser using existing file tree API
+    showFolderBrowserModal('destination-path');
+}
+
+// Show folder browser modal with full navigation
+function showFolderBrowserModal(targetInputId) {
+    // Remove any existing folder browser modal first
+    const existingModal = document.querySelector('.folder-browser-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
     
-    const choice = prompt('Введите путь к папке назначения:\n\nПримеры:\n' + destinations.join('\n'));
-    if (choice) {
-        document.getElementById('destination-path').value = choice;
+    const modal = document.createElement('div');
+    modal.className = 'modal folder-browser-modal';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content" style="width: 80%; max-width: 800px;">
+            <div class="modal-header">
+                <h3>Выберите папку назначения</h3>
+                <span class="close" onclick="closeFolderBrowser()">&times;</span>
+            </div>
+            <div style="padding: 20px;">
+                <!-- Current path display -->
+                <div style="margin-bottom: 15px;">
+                    <label><strong>Текущий путь:</strong></label>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                        <input type="text" id="browser-current-path" readonly style="flex: 1; padding: 8px; background: #f5f5f5;">
+                        <button class="btn btn-secondary" onclick="navigateToParent()" id="up-button" disabled>⬆️ Вверх</button>
+                    </div>
+                </div>
+                
+                <!-- File browser area -->
+                <div id="folder-browser-content" class="file-browser" style="height: 400px; border: 1px solid #ddd; border-radius: 6px; overflow-y: auto;">
+                    <div class="file-browser-loading">Загрузка дисков...</div>
+                </div>
+                
+                <!-- Manual path input -->
+                <div style="margin-top: 15px;">
+                    <label><strong>Или введите путь вручную:</strong></label>
+                    <input type="text" id="manual-path-input" placeholder="Например: C:\\Users\\Username\\Documents" style="width: 100%; padding: 8px; margin-top: 5px;">
+                </div>
+            </div>
+            <div style="text-align: right; padding: 20px; border-top: 1px solid #eee;">
+                <button class="btn btn-secondary" onclick="closeFolderBrowser()">Отмена</button>
+                <button class="btn btn-primary" onclick="confirmFolderSelection('${targetInputId}')">Выбрать папку</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Store target input ID for later use
+    modal.setAttribute('data-target', targetInputId);
+    
+    // Initialize browser with drives
+    currentBrowserPath = 'drives';
+    loadFolderBrowserContent();
+}
+
+// Close folder browser modal
+function closeFolderBrowser() {
+    const modal = document.querySelector('.folder-browser-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Load folder browser content
+async function loadFolderBrowserContent() {
+    console.log('Loading folder browser content for path:', currentBrowserPath);
+    const container = document.getElementById('folder-browser-content');
+    const pathInput = document.getElementById('browser-current-path');
+    const upButton = document.getElementById('up-button');
+    
+    if (!container) {
+        console.error('Container not found!');
+        return;
+    }
+    
+    container.innerHTML = '<div class="file-browser-loading">Загрузка...</div>';
+    
+    try {
+        if (currentBrowserPath === 'drives') {
+            console.log('Loading drives...');
+            // Load available drives
+            const data = await apiCall('/drives');
+            console.log('Drives loaded:', data);
+            
+            if (pathInput) pathInput.value = 'Компьютер';
+            if (upButton) upButton.disabled = true;
+            
+            container.innerHTML = '';
+            data.drives.forEach(drive => {
+                const item = document.createElement('div');
+                item.className = 'file-browser-item';
+                item.innerHTML = `
+                    <span class="file-browser-icon">💾</span>
+                    <span class="file-browser-name">Диск ${drive}</span>
+                `;
+                item.onclick = () => {
+                    console.log('Clicking on drive:', drive);
+                    navigateToPath(drive);
+                };
+                container.appendChild(item);
+            });
+        } else {
+            console.log('Loading directories for path:', currentBrowserPath);
+            // Load directories in current path
+            const data = await apiCall(`/browse?path=${encodeURIComponent(currentBrowserPath)}`);
+            pathInput.value = currentBrowserPath;
+            upButton.disabled = false;
+            
+            container.innerHTML = '';
+            
+            // Add current directory selection option
+            const currentItem = document.createElement('div');
+            currentItem.className = 'file-browser-item';
+            currentItem.style.backgroundColor = '#e3f2fd';
+            currentItem.innerHTML = `
+                <span class="file-browser-icon">📁</span>
+                <span class="file-browser-name"><strong>📍 Выбрать эту папку</strong></span>
+            `;
+            currentItem.onclick = () => selectCurrentPath();
+            container.appendChild(currentItem);
+            
+            // Add directories
+            data.directories.forEach(dir => {
+                const item = document.createElement('div');
+                item.className = 'file-browser-item';
+                item.innerHTML = `
+                    <span class="file-browser-icon">📁</span>
+                    <span class="file-browser-name">${dir.name}</span>
+                `;
+                item.onclick = () => navigateToPath(dir.path);
+                container.appendChild(item);
+            });
+            
+            if (data.directories.length === 0) {
+                const emptyItem = document.createElement('div');
+                emptyItem.className = 'file-browser-loading';
+                emptyItem.textContent = 'Папка пуста или нет доступных подпапок';
+                container.appendChild(emptyItem);
+            }
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="file-browser-loading" style="color: red;">Ошибка загрузки: ${error.message}</div>`;
+    }
+}
+
+// Navigate to specific path
+async function navigateToPath(path) {
+    console.log('Navigating to path:', path);
+    currentBrowserPath = path;
+    try {
+        await loadFolderBrowserContent();
+    } catch (error) {
+        console.error('Error navigating to path:', error);
+        const container = document.getElementById('folder-browser-content');
+        if (container) {
+            container.innerHTML = `<div class="file-browser-loading" style="color: red;">Ошибка: ${error.message}</div>`;
+        }
+    }
+}
+
+// Navigate to parent directory
+async function navigateToParent() {
+    if (currentBrowserPath === 'drives') return;
+    
+    const pathParts = currentBrowserPath.split(/[\\\/]/).filter(part => part.length > 0);
+    
+    if (pathParts.length <= 1) {
+        // Go back to drives
+        currentBrowserPath = 'drives';
+    } else {
+        // Go to parent directory
+        pathParts.pop();
+        currentBrowserPath = pathParts.join('\\') + '\\';
+    }
+    
+    await loadFolderBrowserContent();
+}
+
+// Select current path
+function selectCurrentPath() {
+    const pathInput = document.getElementById('browser-current-path');
+    const manualInput = document.getElementById('manual-path-input');
+    
+    if (pathInput && manualInput) {
+        manualInput.value = currentBrowserPath;
+    }
+}
+
+// Confirm folder selection
+function confirmFolderSelection(targetInputId) {
+    const manualPathInput = document.getElementById('manual-path-input');
+    const targetInput = document.getElementById(targetInputId);
+    
+    if (manualPathInput && targetInput) {
+        let selectedPath = manualPathInput.value.trim();
+        
+        // If no manual path entered, use current browser path
+        if (!selectedPath && currentBrowserPath !== 'drives') {
+            selectedPath = currentBrowserPath;
+        }
+        
+        if (selectedPath) {
+            targetInput.value = selectedPath;
+            closeFolderBrowser();
+        } else {
+            showMessage('Выберите папку или введите путь', 'error');
+        }
     }
 }
 
@@ -885,6 +1129,8 @@ async function confirmDestinationOperation() {
         return;
     }
     
+    // Save operation before closing modal (closeDestinationModal sets it to null)
+    const operation = currentDestinationOperation;
     closeDestinationModal();
     
     try {
@@ -896,7 +1142,7 @@ async function confirmDestinationOperation() {
             return;
         }
         
-        if (currentDestinationOperation === 'copy') {
+        if (operation === 'copy') {
             showProgressModal('Копирование файлов', 'Копирование в процессе...');
             
             const result = await apiCall('/files/copy', {
@@ -911,6 +1157,7 @@ async function confirmDestinationOperation() {
             
             const successCount = result.results.filter(r => r.status === 'success').length;
             const errorCount = result.results.filter(r => r.status === 'error').length;
+            const notFoundCount = result.results.filter(r => r.error && r.error.includes('does not exist')).length;
             
             if (successCount > 0) {
                 showMessage(`Копирование завершено: ${successCount} файлов${errorCount > 0 ? `, ${errorCount} ошибок` : ''}`, 'success');
@@ -918,7 +1165,16 @@ async function confirmDestinationOperation() {
                 showMessage(`Копирование не удалось: ${errorCount} ошибок`, 'error');
             }
             
-        } else if (currentDestinationOperation === 'move') {
+            // If some files were not found, suggest cleanup
+            if (notFoundCount > 0) {
+                setTimeout(() => {
+                    if (confirm(`Обнаружено ${notFoundCount} файлов, которые больше не существуют на диске.\n\nОчистить базу данных от таких записей?`)) {
+                        cleanupDatabase();
+                    }
+                }, 1000);
+            }
+            
+        } else if (operation === 'move') {
             showProgressModal('Перемещение файлов', 'Перемещение в процессе...');
             
             const result = await apiCall('/files/move', {
@@ -935,9 +1191,19 @@ async function confirmDestinationOperation() {
             const errorCount = result.results.filter(r => r.status === 'error').length;
             
             if (successCount > 0) {
+                // Remove moved files from database
+                await apiCall('/files/remove-from-database', {
+                    method: 'POST',
+                    body: JSON.stringify({ fileIds: fileIds })
+                });
+                
                 showMessage(`Перемещение завершено: ${successCount} файлов${errorCount > 0 ? `, ${errorCount} ошибок` : ''}`, 'success');
-                // Refresh tree since files moved
+                
+                // Clear selection and force refresh tree and stats
+                selectedTreeFiles.clear();
+                updateTreeSelectedCount();
                 refreshCurrentView();
+                loadStats();
             } else {
                 showMessage(`Перемещение не удалось: ${errorCount} ошибок`, 'error');
             }
@@ -1031,7 +1297,7 @@ function displayFiles(files) {
 }
 
 // Load file tree
-async function loadFileTree(searchQuery = '') {
+async function loadFileTree(searchQuery = '', forceRefresh = false) {
     try {
         const container = document.getElementById('files-tree-container');
         if (container) {
@@ -1041,6 +1307,9 @@ async function loadFileTree(searchQuery = '') {
         const params = new URLSearchParams();
         if (searchQuery) {
             params.append('search', searchQuery);
+        }
+        if (forceRefresh) {
+            params.append('refresh', Date.now()); // Add timestamp to prevent caching
         }
         
         const tree = await apiCall(`/files/tree?${params}`);
@@ -1088,8 +1357,8 @@ function renderFileTree(treeData, searchQuery = '') {
     
     container.innerHTML = html;
     
-    // Clear previous selection
-    selectedTreeFiles.clear();
+    // Don't clear selection on re-render - preserve user's selection
+    // selectedTreeFiles.clear(); // REMOVED - this was causing the bug!
     updateTreeSelectedCount();
     
     // Show tree controls
@@ -1101,6 +1370,8 @@ function renderFileTree(treeData, searchQuery = '') {
     // Make nodes focusable and add interactions
     setTimeout(() => {
         makeTreeNodesFocusable();
+        // Restore checkbox states after re-render
+        restoreTreeSelection();
     }, 100);
 }
 
@@ -1370,8 +1641,11 @@ function isNodeVisible(node) {
 
 // Show copy dialog
 function showCopyDialog() {
+    console.log('showCopyDialog called, selectedTreeFiles.size:', selectedTreeFiles.size);
+    console.log('selectedTreeFiles:', Array.from(selectedTreeFiles));
+    
     if (selectedTreeFiles.size === 0) {
-        showMessage('Выберите файлы для копирования', 'error');
+        showMessage('❌ Сначала выберите файлы или папки в дереве файлов (вкладка "Поиск"), затем нажмите "Копировать"', 'error');
         return;
     }
     
@@ -1382,7 +1656,7 @@ function showCopyDialog() {
 // Show move dialog
 function showMoveDialog() {
     if (selectedTreeFiles.size === 0) {
-        showMessage('Выберите файлы для перемещения', 'error');
+        showMessage('❌ Сначала выберите файлы или папки в дереве файлов (вкладка "Поиск"), затем нажмите "Переместить"', 'error');
         return;
     }
     
@@ -1408,7 +1682,7 @@ function confirmDeleteTreeFiles() {
 // Show archive dialog
 function showArchiveDialog() {
     if (selectedTreeFiles.size === 0) {
-        showMessage('Выберите файлы для архивации', 'error');
+        showMessage('❌ Сначала выберите файлы или папки в дереве файлов (вкладка "Поиск"), затем нажмите "Создать архив"', 'error');
         return;
     }
     
@@ -1429,7 +1703,8 @@ async function deleteTreeFiles() {
             return;
         }
         
-        const result = await apiCall('/files/delete', {
+        // Use enhanced delete that removes both from disk and database
+        const result = await apiCall('/files/delete-enhanced', {
             method: 'POST',
             body: JSON.stringify({ fileIds })
         });
@@ -1437,12 +1712,19 @@ async function deleteTreeFiles() {
         closeProgressModal();
         
         const successCount = result.results.filter(r => r.status === 'success').length;
-        showMessage(`Удаление завершено: ${successCount} файлов`, 'success');
+        const errorCount = result.results.filter(r => r.status === 'error').length;
         
-        // Clear selection and refresh tree
+        if (successCount > 0) {
+            showMessage(`Удаление завершено: ${successCount} файлов${errorCount > 0 ? `, ${errorCount} ошибок` : ''}`, 'success');
+        } else {
+            showMessage(`Удаление не удалось: ${errorCount} ошибок`, 'error');
+        }
+        
+        // Clear selection and refresh tree and stats
         selectedTreeFiles.clear();
         updateTreeSelectedCount();
         refreshCurrentView();
+        loadStats();
         
     } catch (error) {
         closeProgressModal();
@@ -1483,8 +1765,6 @@ function showTreeContextMenu(event, fileId, path, isDirectory, inDatabase) {
     event.preventDefault();
     event.stopPropagation();
     
-    console.log('Context menu for:', path, 'isDirectory:', isDirectory, 'inDatabase:', inDatabase);
-    
     const contextMenu = document.getElementById('tree-context-menu');
     
     // Store current target
@@ -1518,7 +1798,8 @@ function hideContextMenu() {
 // Context menu actions
 function contextCopyFile() {
     if (currentContextTarget) {
-        selectSingleFile(currentContextTarget);
+        // Don't clear selection, just ensure this file is selected
+        ensureFileSelected(currentContextTarget);
         showCopyDialog();
     }
     hideContextMenu();
@@ -1526,7 +1807,8 @@ function contextCopyFile() {
 
 function contextMoveFile() {
     if (currentContextTarget) {
-        selectSingleFile(currentContextTarget);
+        // Don't clear selection, just ensure this file is selected
+        ensureFileSelected(currentContextTarget);
         showMoveDialog();
     }
     hideContextMenu();
@@ -1542,13 +1824,44 @@ function contextDeleteFile() {
 
 function contextArchiveFile() {
     if (currentContextTarget) {
-        selectSingleFile(currentContextTarget);
+        // Don't clear selection, just ensure this file is selected
+        ensureFileSelected(currentContextTarget);
         showArchiveDialog();
     }
     hideContextMenu();
 }
 
-// Helper function to select single file for context menu operations
+// Helper function to ensure file is selected (without clearing other selections)
+function ensureFileSelected(target) {
+    // Check if file is already selected
+    let alreadySelected = false;
+    selectedTreeFiles.forEach(selectedFile => {
+        if (selectedFile.id === target.id) {
+            alreadySelected = true;
+        }
+    });
+    
+    if (!alreadySelected) {
+        // Add target to selection
+        selectedTreeFiles.add(target);
+        
+        // Check the target's checkbox
+        const checkbox = document.querySelector(`.tree-checkbox[data-file-id="${target.id}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+        } else {
+            // Try alternative selector
+            const altCheckbox = document.querySelector(`[data-file-id="${target.id}"] .tree-checkbox`);
+            if (altCheckbox) {
+                altCheckbox.checked = true;
+            }
+        }
+    }
+    
+    updateTreeSelectedCount();
+}
+
+// Helper function to select single file for context menu operations (legacy)
 function selectSingleFile(target) {
     // Clear current selection
     selectedTreeFiles.clear();
@@ -1560,9 +1873,15 @@ function selectSingleFile(target) {
     selectedTreeFiles.add(target);
     
     // Check the target's checkbox
-    const checkbox = document.querySelector(`[data-file-id="${target.id}"]`);
+    const checkbox = document.querySelector(`.tree-checkbox[data-file-id="${target.id}"]`);
     if (checkbox) {
         checkbox.checked = true;
+    } else {
+        // Try alternative selector
+        const altCheckbox = document.querySelector(`[data-file-id="${target.id}"] .tree-checkbox`);
+        if (altCheckbox) {
+            altCheckbox.checked = true;
+        }
     }
     
     updateTreeSelectedCount();
@@ -1574,8 +1893,6 @@ function updateTreeSelectedCount() {
     const countElement = document.getElementById('tree-selected-count');
     const actionsPanel = document.getElementById('tree-actions-panel');
     
-    console.log('Selected files count:', count);
-    
     if (countElement) {
         countElement.textContent = `${count} элементов выбрано`;
     }
@@ -1583,12 +1900,32 @@ function updateTreeSelectedCount() {
     if (actionsPanel) {
         if (count > 0) {
             actionsPanel.classList.add('show');
-            console.log('Actions panel shown');
         } else {
             actionsPanel.classList.remove('show');
-            console.log('Actions panel hidden');
         }
     }
+}
+
+// Restore tree selection after re-render
+function restoreTreeSelection() {
+    console.log('Restoring tree selection for', selectedTreeFiles.size, 'items');
+    
+    selectedTreeFiles.forEach(selectedFile => {
+        const checkbox = document.querySelector(`.tree-checkbox[data-file-id="${selectedFile.id}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+            console.log('Restored checkbox for:', selectedFile.id);
+        } else {
+            // Try alternative selector
+            const altCheckbox = document.querySelector(`[data-file-id="${selectedFile.id}"] .tree-checkbox`);
+            if (altCheckbox) {
+                altCheckbox.checked = true;
+                console.log('Restored checkbox with alternative selector for:', selectedFile.id);
+            } else {
+                console.warn('Could not find checkbox for:', selectedFile.id);
+            }
+        }
+    });
 }
 
 
@@ -1633,9 +1970,9 @@ let selectedTreeFiles = new Set();
 let currentDestinationOperation = null;
 
 // Refresh current view (always tree)
-function refreshCurrentView() {
+function refreshCurrentView(forceRefresh = true) {
     const searchQuery = document.getElementById('search-input').value.trim();
-    loadFileTree(searchQuery);
+    loadFileTree(searchQuery, forceRefresh);
 }
 
 // Search files (always in tree mode)
@@ -1680,6 +2017,69 @@ async function clearDatabase() {
         loadStats();
     } catch (error) {
         showMessage('Ошибка при очистке базы данных', 'error');
+    }
+}
+
+// Cleanup database - remove records for non-existent files
+async function cleanupDatabase() {
+    if (!confirm('Очистить базу данных от записей о несуществующих файлах?\n\nЭто может занять некоторое время для больших баз данных.')) {
+        return;
+    }
+    
+    try {
+        showProgressModal('Очистка базы данных', 'Проверка файлов на диске...');
+        
+        const result = await apiCall('/files/cleanup-database', { method: 'POST' });
+        
+        closeProgressModal();
+        
+        showMessage(
+            `Очистка завершена!\n` +
+            `Проверено файлов: ${result.totalFiles}\n` +
+            `Удалено записей: ${result.removedFiles}\n` +
+            `Осталось файлов: ${result.remainingFiles}`,
+            'success'
+        );
+        
+        // Refresh interface
+        refreshCurrentView();
+        loadStats();
+        
+    } catch (error) {
+        closeProgressModal();
+        showMessage('Ошибка при очистке базы данных: ' + error.message, 'error');
+    }
+}
+
+// Toggle file system monitoring
+async function toggleFileSystemMonitoring() {
+    const checkbox = document.getElementById('monitoring-enabled');
+    const enabled = checkbox.checked;
+    
+    try {
+        const result = await apiCall('/files/toggle-monitoring', {
+            method: 'POST',
+            body: JSON.stringify({ enabled })
+        });
+        
+        showMessage(result.message, 'success');
+    } catch (error) {
+        // Revert checkbox state on error
+        checkbox.checked = !enabled;
+        showMessage('Ошибка при изменении настроек мониторинга: ' + error.message, 'error');
+    }
+}
+
+// Load monitoring status on page load
+async function loadMonitoringStatus() {
+    try {
+        const status = await apiCall('/files/monitoring-status');
+        const checkbox = document.getElementById('monitoring-enabled');
+        if (checkbox) {
+            checkbox.checked = status.enabled;
+        }
+    } catch (error) {
+        console.error('Failed to load monitoring status:', error);
     }
 }
 
@@ -2323,10 +2723,7 @@ function renderFileBrowser() {
     container.innerHTML = html;
 }
 
-function navigateToPath(path) {
-    currentBrowserPath = path;
-    loadFileBrowser(path);
-}
+// Duplicate function removed - using the async version above
 
 function selectDestination(path, name) {
     selectedDestinationPath = path;
