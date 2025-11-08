@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 FileStash Simple initialized');
     loadDrives();
     loadStats();
-    loadMonitoringStatus();
+
     
     // Initialize tree keyboard navigation
     addTreeKeyboardNavigation();
@@ -1399,20 +1399,24 @@ function createTreeNode(node, level) {
     const hasChildren = isDirectory && node.children && Object.keys(node.children).length > 0;
     const nodeId = `tree-node-${encodeURIComponent(node.path)}`;
     const inDatabase = node.inDatabase !== false; // Default to true if not specified
+    const existsOnDisk = node.existsOnDisk !== false; // Default to true if not specified
     
     // Add classes for styling
     let nodeClasses = `tree-node ${isDirectory ? 'directory' : 'file'}`;
     if (inDatabase) {
         nodeClasses += ' in-database';
     }
+    if (!existsOnDisk) {
+        nodeClasses += ' missing-file';
+    }
     
     // Generate file ID first
     const fileId = node.fileData?.id || `path_${encodeURIComponent(node.path)}`;
     
-    let html = `<div class="${nodeClasses}" data-level="${level}" data-path="${node.path}" data-file-id="${fileId}" data-is-directory="${isDirectory}" data-in-database="${inDatabase}" id="${nodeId}" oncontextmenu="showTreeContextMenu(event, '${fileId}', '${node.path}', ${isDirectory}, ${inDatabase})">`;
+    let html = `<div class="${nodeClasses}" data-level="${level}" data-path="${node.path}" data-file-id="${fileId}" data-is-directory="${isDirectory}" data-in-database="${inDatabase}" data-exists-on-disk="${existsOnDisk}" id="${nodeId}" oncontextmenu="showTreeContextMenu(event, '${fileId}', '${node.path}', ${isDirectory}, ${inDatabase})">`;
     
     // Checkbox for selection (for all items, including intermediate folders)
-    html += `<input type="checkbox" class="tree-checkbox" data-file-id="${fileId}" data-path="${node.path}" data-is-directory="${isDirectory}" data-in-database="${inDatabase}" onchange="toggleTreeFileSelection('${fileId}', this)">`;
+    html += `<input type="checkbox" class="tree-checkbox" data-file-id="${fileId}" data-path="${node.path}" data-is-directory="${isDirectory}" data-in-database="${inDatabase}" data-exists-on-disk="${existsOnDisk}" onchange="toggleTreeFileSelection('${fileId}', this)">`;
     
     // Expand/collapse icon for directories with children
     if (isDirectory) {
@@ -1439,9 +1443,18 @@ function createTreeNode(node, level) {
     }
     html += `<span class="tree-icon">${icon}</span>`;
     
-    // Name with database indicator
-    const nameTitle = inDatabase ? node.path : `${node.path} (not in database)`;
-    html += `<span class="tree-name" title="${nameTitle}">${node.name}</span>`;
+    // Name with database and disk status indicator
+    let nameTitle = node.path;
+    let displayName = node.name;
+    
+    if (!existsOnDisk) {
+        nameTitle += ' (MISSING - файл не найден на диске)';
+        displayName += ' ❌';
+    } else if (!inDatabase) {
+        nameTitle += ' (not in database)';
+    }
+    
+    html += `<span class="tree-name" title="${nameTitle}">${displayName}</span>`;
     
     // Size for files
     if (!isDirectory && node.fileData?.size !== undefined) {
@@ -1831,6 +1844,13 @@ function contextArchiveFile() {
     hideContextMenu();
 }
 
+function contextIntegrityCheck() {
+    if (currentContextTarget) {
+        showIntegrityCheckModal(currentContextTarget.path);
+    }
+    hideContextMenu();
+}
+
 // Helper function to ensure file is selected (without clearing other selections)
 function ensureFileSelected(target) {
     // Check if file is already selected
@@ -2020,6 +2040,21 @@ async function clearDatabase() {
     }
 }
 
+// Compact database - shrink database file size
+async function compactDatabase() {
+    if (!confirm('Сжать базу данных?\n\nЭто уменьшит размер файла базы данных, удалив неиспользуемое пространство.')) {
+        return;
+    }
+    
+    try {
+        showMessage('Сжатие базы данных...', 'info');
+        const result = await apiCall('/compact', { method: 'POST' });
+        showMessage(result.message, 'success');
+    } catch (error) {
+        showMessage('Ошибка при сжатии базы данных: ' + error.message, 'error');
+    }
+}
+
 // Cleanup database - remove records for non-existent files
 async function cleanupDatabase() {
     if (!confirm('Очистить базу данных от записей о несуществующих файлах?\n\nЭто может занять некоторое время для больших баз данных.')) {
@@ -2051,37 +2086,354 @@ async function cleanupDatabase() {
     }
 }
 
-// Toggle file system monitoring
-async function toggleFileSystemMonitoring() {
-    const checkbox = document.getElementById('monitoring-enabled');
-    const enabled = checkbox.checked;
+// Show integrity check modal
+function showIntegrityCheckModal(checkPath) {
+    const modal = document.getElementById('integrity-check-modal');
+    const pathDisplay = document.getElementById('check-path-display');
+    const resultsDiv = document.getElementById('integrity-results');
+    
+    pathDisplay.textContent = checkPath;
+    resultsDiv.style.display = 'none';
+    
+    // Reset checkboxes
+    document.getElementById('check-existence').checked = true;
+    document.getElementById('check-crc32').checked = true;
+    
+    modal.style.display = 'block';
+}
+
+// Close integrity check modal
+function closeIntegrityCheckModal() {
+    document.getElementById('integrity-check-modal').style.display = 'none';
+}
+
+// Start integrity check
+// Global variable to store current integrity check ID
+let currentIntegrityCheckId = null;
+
+async function startIntegrityCheck() {
+    const checkPath = document.getElementById('check-path-display').textContent;
+    const checkExistence = document.getElementById('check-existence').checked;
+    const checkCRC32 = document.getElementById('check-crc32').checked;
+    const threadCount = document.getElementById('integrity-thread-count').value;
+    const startBtn = document.getElementById('integrity-start-btn');
+    const resultsDiv = document.getElementById('integrity-results');
+    const progressSection = document.getElementById('integrity-progress-section');
+    const stopBtn = document.getElementById('integrity-stop-btn');
+    
+    if (!checkExistence && !checkCRC32) {
+        showMessage('Выберите хотя бы один тип проверки', 'error');
+        return;
+    }
+    
+    startBtn.disabled = true;
+    startBtn.textContent = '⏳ Запуск...';
+    resultsDiv.style.display = 'none';
+    progressSection.style.display = 'block';
+    stopBtn.style.display = 'inline-block';
+    
+    console.log('🚀 Starting integrity check, progress section shown:', progressSection.style.display);
     
     try {
-        const result = await apiCall('/files/toggle-monitoring', {
+        updateIntegrityProgress(0, 'Инициализация проверки...');
+        
+        const result = await apiCall('/files/integrity-check', {
             method: 'POST',
-            body: JSON.stringify({ enabled })
+            body: JSON.stringify({
+                path: checkPath,
+                checkCRC32: checkCRC32,
+                checkExistence: checkExistence,
+                threads: threadCount
+            })
         });
         
-        showMessage(result.message, 'success');
+        if (result.checkId) {
+            currentIntegrityCheckId = result.checkId;
+            updateIntegrityProgress(0, `Проверка ${result.totalFiles} файлов с ${threadCount} потоками...`);
+            
+            // Monitor progress
+            const finalResult = await monitorIntegrityProgress(result.checkId);
+            
+            // Hide progress section and show results
+            progressSection.style.display = 'none';
+            
+            if (finalResult && finalResult.results) {
+                displayIntegrityResults({
+                    message: 'Integrity check completed',
+                    totalFiles: finalResult.total,
+                    results: finalResult.results,
+                    logFile: finalResult.logFile
+                });
+            } else {
+                showMessage('Проверка целостности завершена, но результаты недоступны', 'warning');
+            }
+        } else {
+            showMessage('Не удалось запустить проверку целостности', 'error');
+        }
+        
     } catch (error) {
-        // Revert checkbox state on error
-        checkbox.checked = !enabled;
-        showMessage('Ошибка при изменении настроек мониторинга: ' + error.message, 'error');
+        showMessage('Ошибка при проверке целостности: ' + error.message, 'error');
+    } finally {
+        startBtn.disabled = false;
+        startBtn.textContent = '🔍 Начать проверку';
+        stopBtn.style.display = 'none';
+        currentIntegrityCheckId = null;
     }
 }
 
-// Load monitoring status on page load
-async function loadMonitoringStatus() {
-    try {
-        const status = await apiCall('/files/monitoring-status');
-        const checkbox = document.getElementById('monitoring-enabled');
-        if (checkbox) {
-            checkbox.checked = status.enabled;
+// Update integrity check progress
+function updateIntegrityProgress(percentage, status, processed = 0, total = 0, speed = 0, timeElapsed = 0) {
+    console.log(`🔄 Updating integrity progress: ${percentage}%, ${processed}/${total}, speed: ${speed}`);
+    
+    const progressFill = document.getElementById('integrity-progress-fill');
+    const progressStatus = document.getElementById('integrity-progress-status');
+    
+    console.log('Progress elements found:', !!progressFill, !!progressStatus);
+    
+    if (progressFill) {
+        progressFill.style.width = percentage + '%';
+        progressFill.textContent = percentage + '%';
+        console.log(`✅ Updated progress bar to ${percentage}%`);
+    } else {
+        console.error('❌ Progress fill element not found!');
+    }
+    
+    if (progressStatus) {
+        let statusText = status;
+        
+        // Add detailed progress info if available
+        if (total > 0) {
+            statusText = `Обработано: ${processed}/${total} файлов (${percentage}%)`;
+            
+            if (speed > 0) {
+                statusText += ` | Скорость: ${speed} файлов/сек`;
+            }
+            
+            if (timeElapsed > 0) {
+                const timeText = formatScanTime(timeElapsed);
+                statusText += ` | Время: ${timeText}`;
+                
+                // Calculate ETA
+                if (speed > 0 && processed < total) {
+                    const remaining = total - processed;
+                    const etaSeconds = Math.round(remaining / speed);
+                    if (etaSeconds > 0 && etaSeconds < 3600) {
+                        statusText += ` | Осталось: ~${formatScanTime(etaSeconds)}`;
+                    }
+                }
+            }
         }
-    } catch (error) {
-        console.error('Failed to load monitoring status:', error);
+        
+        progressStatus.textContent = statusText;
+        console.log(`✅ Updated status: ${statusText}`);
+    } else {
+        console.error('❌ Progress status element not found!');
     }
 }
+
+// Stop integrity check
+async function stopIntegrityCheck() {
+    if (!currentIntegrityCheckId) {
+        showMessage('Нет активной проверки целостности для остановки', 'error');
+        return;
+    }
+    
+    try {
+        const stopBtn = document.getElementById('integrity-stop-btn');
+        stopBtn.disabled = true;
+        stopBtn.textContent = '⏳ Остановка...';
+        
+        const result = await apiCall(`/files/integrity-check/stop/${currentIntegrityCheckId}`, { 
+            method: 'POST'
+        });
+        
+        updateIntegrityProgress(0, 'Запрос на остановку отправлен...');
+        showMessage('Запрос на остановку проверки целостности отправлен...', 'info');
+        
+    } catch (error) {
+        showMessage('Ошибка при остановке проверки целостности: ' + error.message, 'error');
+        
+        // Reset button state
+        const stopBtn = document.getElementById('integrity-stop-btn');
+        stopBtn.disabled = false;
+        stopBtn.textContent = '⏹️ Остановить проверку';
+    }
+}
+
+// Monitor integrity check progress
+async function monitorIntegrityProgress(checkId) {
+    return new Promise((resolve) => {
+        const checkProgress = async () => {
+            try {
+                const progress = await apiCall(`/files/integrity-check/progress/${checkId}`);
+                
+                if (progress.total > 0) {
+                    const percentage = Math.round((progress.processed / progress.total) * 100);
+                    const currentTime = Date.now();
+                    const elapsedTime = Math.round((currentTime - progress.startTime) / 1000);
+                    
+                    // Calculate processing speed
+                    const itemsPerSecond = elapsedTime > 0 ? Math.round(progress.processed / elapsedTime) : 0;
+                    
+                    updateIntegrityProgress(
+                        percentage, 
+                        '', // Status will be generated automatically
+                        progress.processed, 
+                        progress.total, 
+                        itemsPerSecond, 
+                        elapsedTime
+                    );
+                }
+                
+                if (progress.status === 'completed' || progress.status === 'error' || progress.status === 'cancelled') {
+                    // Hide stop button
+                    document.getElementById('integrity-stop-btn').style.display = 'none';
+                    currentIntegrityCheckId = null;
+                    
+                    // Show final status
+                    if (progress.status === 'completed') {
+                        const finalTime = progress.endTime ? formatScanTime(Math.round((progress.endTime - progress.startTime) / 1000)) : '';
+                        updateIntegrityProgress(100, `Проверка завершена за ${finalTime}`);
+                    } else if (progress.status === 'cancelled') {
+                        const finalTime = progress.endTime ? formatScanTime(Math.round((progress.endTime - progress.startTime) / 1000)) : '';
+                        updateIntegrityProgress(Math.round((progress.processed / progress.total) * 100), `Проверка остановлена за ${finalTime}. Обработано: ${progress.processed}/${progress.total} файлов`);
+                    } else {
+                        updateIntegrityProgress(0, 'Ошибка проверки');
+                    }
+                    resolve(progress);
+                } else {
+                    setTimeout(checkProgress, 1000);
+                }
+            } catch (error) {
+                console.error('Progress check error:', error);
+                resolve();
+            }
+        };
+        
+        checkProgress();
+    });
+}
+
+// Display integrity check results
+function displayIntegrityResults(result) {
+    const resultsDiv = document.getElementById('integrity-results');
+    const summaryDiv = document.getElementById('integrity-summary');
+    const detailsDiv = document.getElementById('integrity-details');
+    
+    // Summary
+    const { totalFiles, results } = result;
+    const { missingFiles, crcMismatches, checkedFiles, renamedFiles } = results;
+    
+    summaryDiv.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 15px;">
+            <div style="text-align: center; padding: 10px; background: #e3f2fd; border-radius: 4px;">
+                <div style="font-size: 24px; font-weight: bold; color: #1976d2;">${checkedFiles}</div>
+                <div style="font-size: 12px; color: #666;">Проверено файлов</div>
+            </div>
+            <div style="text-align: center; padding: 10px; background: #ffebee; border-radius: 4px;">
+                <div style="font-size: 24px; font-weight: bold; color: #d32f2f;">${missingFiles.length}</div>
+                <div style="font-size: 12px; color: #666;">Отсутствующих</div>
+            </div>
+            <div style="text-align: center; padding: 10px; background: #fff3e0; border-radius: 4px;">
+                <div style="font-size: 24px; font-weight: bold; color: #f57c00;">${crcMismatches.length}</div>
+                <div style="font-size: 12px; color: #666;">CRC несовпадений</div>
+            </div>
+            ${renamedFiles && renamedFiles.length > 0 ? `
+            <div style="text-align: center; padding: 10px; background: #e8f5e0; border-radius: 4px;">
+                <div style="font-size: 24px; font-weight: bold; color: #2e7d32;">${renamedFiles.length}</div>
+                <div style="font-size: 12px; color: #666;">Переименованных</div>
+            </div>
+            ` : ''}
+        </div>
+    `;
+    
+    // Details
+    let detailsHTML = '';
+    
+    if (missingFiles.length > 0) {
+        detailsHTML += `
+            <div style="margin-bottom: 20px;">
+                <h5 style="color: #d32f2f; margin-bottom: 10px;">❌ Отсутствующие файлы (${missingFiles.length}):</h5>
+                <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ffcdd2; border-radius: 4px; padding: 10px; background: #ffebee;">
+        `;
+        missingFiles.forEach(file => {
+            detailsHTML += `<div style="margin-bottom: 5px; font-family: monospace; font-size: 12px;">${file.path}</div>`;
+        });
+        detailsHTML += '</div></div>';
+    }
+    
+    if (crcMismatches.length > 0) {
+        detailsHTML += `
+            <div style="margin-bottom: 20px;">
+                <h5 style="color: #f57c00; margin-bottom: 10px;">⚠️ CRC32 несовпадения (${crcMismatches.length}):</h5>
+                <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ffcc02; border-radius: 4px; padding: 10px; background: #fff3e0;">
+        `;
+        crcMismatches.forEach(file => {
+            detailsHTML += `
+                <div style="margin-bottom: 10px; padding: 8px; border: 1px solid #ffb74d; border-radius: 4px; background: white;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">${file.filename}</div>
+                    <div style="font-family: monospace; font-size: 11px; color: #666;">${file.path}</div>
+                    <div style="margin-top: 5px; font-size: 12px;">
+                        <span style="color: #666;">Оригинал:</span> <code>${file.originalCRC32}</code><br>
+                        <span style="color: #666;">Текущий:</span> <code>${file.currentCRC32}</code>
+                    </div>
+                </div>
+            `;
+        });
+        detailsHTML += '</div></div>';
+    }
+    
+    if (renamedFiles && renamedFiles.length > 0) {
+        detailsHTML += `
+            <div style="margin-bottom: 20px;">
+                <h5 style="color: #2e7d32; margin-bottom: 10px;">🔄 Переименованные файлы (${renamedFiles.length}):</h5>
+                <div style="max-height: 150px; overflow-y: auto; border: 1px solid #c8e6c9; border-radius: 4px; padding: 10px; background: #e8f5e0;">
+        `;
+        renamedFiles.forEach(file => {
+            detailsHTML += `
+                <div style="margin-bottom: 10px; padding: 8px; border: 1px solid #81c784; border-radius: 4px; background: white;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">🔄 ${file.originalName} → ${file.newName}</div>
+                    <div style="font-family: monospace; font-size: 11px; color: #666;">Было: ${file.originalPath}</div>
+                    <div style="font-family: monospace; font-size: 11px; color: #666;">Стало: ${file.newPath}</div>
+                    <div style="margin-top: 5px; font-size: 12px;">
+                        <span style="color: #666;">CRC32:</span> <code>${file.crc32}</code> | 
+                        <span style="color: #666;">Размер:</span> ${formatBytes(file.size)}
+                    </div>
+                </div>
+            `;
+        });
+        detailsHTML += '</div></div>';
+    }
+    
+    if (missingFiles.length === 0 && crcMismatches.length === 0) {
+        detailsHTML = `
+            <div style="text-align: center; padding: 20px; color: #2e7d32;">
+                <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
+                <div style="font-size: 18px; font-weight: bold;">Все файлы в порядке!</div>
+                <div style="font-size: 14px; color: #666;">Проблем не обнаружено</div>
+            </div>
+        `;
+    }
+    
+    detailsDiv.innerHTML = detailsHTML;
+    resultsDiv.style.display = 'block';
+    
+    // Show success message
+    const issuesCount = missingFiles.length + crcMismatches.length;
+    const renamedCount = renamedFiles ? renamedFiles.length : 0;
+    if (issuesCount === 0 && renamedCount === 0) {
+        showMessage('Проверка целостности завершена. Проблем не обнаружено!', 'success');
+    } else if (issuesCount === 0 && renamedCount > 0) {
+        showMessage(`Проверка завершена. Найдено ${renamedCount} переименованных файлов. Лог сохранен в папку scan-logs.`, 'info');
+    } else {
+        const message = `Проверка завершена. Обнаружено проблем: ${issuesCount}` + 
+                       (renamedCount > 0 ? `, переименованных файлов: ${renamedCount}` : '') + 
+                       '. Лог сохранен в папку scan-logs.';
+        showMessage(message, 'warning');
+    }
+}
+
+
 
 // Pagination
 function updatePagination() {
@@ -2967,5 +3319,268 @@ async function renderFileBrowserWithStatus() {
     // Check database status for visible paths
     if (visiblePaths.length > 0) {
         debouncedDatabaseStatusCheck(visiblePaths);
+    }
+}
+
+// Database integrity check functions
+let currentDatabaseIntegrityCheckId = null;
+
+// Start database integrity check
+async function checkDatabaseIntegrity() {
+    const progressSection = document.getElementById('integrity-check-progress');
+    const progressFill = document.getElementById('integrity-progress-fill');
+    const progressStatus = document.getElementById('integrity-progress-status');
+    const stopBtn = document.getElementById('integrity-stop-btn');
+    
+    // Show progress section
+    progressSection.style.display = 'block';
+    stopBtn.style.display = 'inline-block';
+    
+    // Reset progress
+    progressFill.style.width = '0%';
+    progressStatus.textContent = 'Инициализация проверки целостности...';
+    
+    try {
+        console.log('🔍 Starting database integrity check...');
+        
+        const result = await apiCall('/database/integrity-check', {
+            method: 'POST'
+        });
+        
+        if (result.checkId) {
+            currentDatabaseIntegrityCheckId = result.checkId;
+            progressStatus.textContent = `Проверка ${result.totalFiles} записей в базе данных...`;
+            
+            // Monitor progress
+            const finalResult = await monitorDatabaseIntegrityProgress(result.checkId);
+            
+            // Hide progress section and show results
+            progressSection.style.display = 'none';
+            
+            if (finalResult && finalResult.results) {
+                displayDatabaseIntegrityResults(finalResult.results);
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Database integrity check failed:', error);
+        showMessage(`Ошибка проверки целостности: ${error.message}`, 'error');
+        progressSection.style.display = 'none';
+    } finally {
+        currentDatabaseIntegrityCheckId = null;
+        stopBtn.style.display = 'none';
+    }
+}
+
+// Stop database integrity check
+async function stopDatabaseIntegrityCheck() {
+    if (!currentDatabaseIntegrityCheckId) {
+        showMessage('Нет активной проверки целостности для остановки', 'error');
+        return;
+    }
+    
+    try {
+        const stopBtn = document.getElementById('integrity-stop-btn');
+        stopBtn.disabled = true;
+        stopBtn.textContent = '⏳ Остановка...';
+        
+        const result = await apiCall(`/files/integrity-check/stop/${currentDatabaseIntegrityCheckId}`, { 
+            method: 'POST'
+        });
+        
+        const progressStatus = document.getElementById('integrity-progress-status');
+        progressStatus.textContent = 'Запрос на остановку отправлен...';
+        showMessage('Запрос на остановку проверки целостности отправлен...', 'info');
+        
+    } catch (error) {
+        console.error('❌ Failed to stop integrity check:', error);
+        showMessage(`Ошибка остановки проверки: ${error.message}`, 'error');
+    } finally {
+        // Reset button state
+        const stopBtn = document.getElementById('integrity-stop-btn');
+        stopBtn.disabled = false;
+        stopBtn.textContent = '⏹️ Остановить проверку';
+    }
+}
+
+// Monitor database integrity check progress
+async function monitorDatabaseIntegrityProgress(checkId) {
+    return new Promise((resolve) => {
+        const checkProgress = async () => {
+            try {
+                const progress = await apiCall(`/files/integrity-check/progress/${checkId}`);
+                
+                if (progress.total > 0) {
+                    const percentage = Math.round((progress.processed / progress.total) * 100);
+                    const progressFill = document.getElementById('integrity-progress-fill');
+                    const progressStatus = document.getElementById('integrity-progress-status');
+                    
+                    progressFill.style.width = `${percentage}%`;
+                    
+                    const elapsedTime = progress.startTime ? Math.round((Date.now() - progress.startTime) / 1000) : 0;
+                    const itemsPerSecond = elapsedTime > 0 ? Math.round(progress.processed / elapsedTime) : 0;
+                    
+                    progressStatus.textContent = `Проверено ${progress.processed}/${progress.total} записей (${percentage}%) - ${itemsPerSecond} записей/сек`;
+                }
+                
+                if (progress.status === 'completed' || progress.status === 'error' || progress.status === 'cancelled') {
+                    // Hide stop button
+                    document.getElementById('integrity-stop-btn').style.display = 'none';
+                    currentDatabaseIntegrityCheckId = null;
+                    
+                    // Show final status
+                    const progressStatus = document.getElementById('integrity-progress-status');
+                    if (progress.status === 'completed') {
+                        const finalTime = progress.endTime ? formatScanTime(Math.round((progress.endTime - progress.startTime) / 1000)) : '';
+                        progressStatus.textContent = `Проверка завершена за ${finalTime}`;
+                    } else if (progress.status === 'cancelled') {
+                        const finalTime = progress.endTime ? formatScanTime(Math.round((progress.endTime - progress.startTime) / 1000)) : '';
+                        progressStatus.textContent = `Проверка остановлена за ${finalTime}. Обработано: ${progress.processed}/${progress.total} записей`;
+                    } else {
+                        progressStatus.textContent = 'Ошибка проверки';
+                    }
+                    resolve(progress);
+                } else {
+                    setTimeout(checkProgress, 1000);
+                }
+            } catch (error) {
+                console.error('❌ Error monitoring progress:', error);
+                resolve(null);
+            }
+        };
+        
+        checkProgress();
+    });
+}
+
+// Display database integrity check results
+function displayDatabaseIntegrityResults(results) {
+    const statusDiv = document.getElementById('settings-status');
+    
+    if (results.missingCount === 0) {
+        statusDiv.innerHTML = `
+            <div style="padding: 15px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 6px; color: #155724; margin-top: 15px;">
+                <h4>✅ Проверка целостности завершена</h4>
+                <p><strong>Все файлы найдены!</strong> Проверено записей: ${results.totalChecked}</p>
+                <p>Все файлы и папки из базы данных существуют на диске.</p>
+            </div>
+        `;
+    } else {
+        statusDiv.innerHTML = `
+            <div style="padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; color: #856404; margin-top: 15px;">
+                <h4>⚠️ Проверка целостности завершена</h4>
+                <p><strong>Найдено недостающих файлов:</strong> ${results.missingCount} из ${results.totalChecked}</p>
+                <p><strong>Отчет сохранен в файл:</strong> <code>${results.reportFile}</code></p>
+                <p>Записи в базе данных НЕ были удалены. Отчет содержит список всех недостающих файлов и папок.</p>
+                <details style="margin-top: 10px;">
+                    <summary style="cursor: pointer; font-weight: bold;">Показать первые 10 недостающих файлов</summary>
+                    <ul style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
+                        ${results.missingFiles.slice(0, 10).map(file => 
+                            `<li><code>${file.isDirectory ? '[DIR]' : '[FILE]'} ${file.path}</code></li>`
+                        ).join('')}
+                        ${results.missingFiles.length > 10 ? `<li><em>... и еще ${results.missingFiles.length - 10} файлов</em></li>` : ''}
+                    </ul>
+                </details>
+            </div>
+        `;
+    }
+    
+    // Show success message
+    if (results.missingCount === 0) {
+        showMessage('Проверка целостности завершена. Все файлы найдены!', 'success');
+    } else {
+        showMessage(`Проверка целостности завершена. Найдено ${results.missingCount} недостающих файлов. Отчет сохранен в missed_files.txt`, 'warning');
+    }
+}
+
+// Database restore functions
+
+// Show restore modal
+function showRestoreModal() {
+    const modal = document.getElementById('restore-modal');
+    const backupFileInput = document.getElementById('backup-file-path');
+    
+    // Clear previous input
+    backupFileInput.value = '';
+    
+    // Set default to replace mode
+    document.querySelector('input[name="restore-mode"][value="replace"]').checked = true;
+    
+    modal.style.display = 'block';
+}
+
+// Close restore modal
+function closeRestoreModal() {
+    document.getElementById('restore-modal').style.display = 'none';
+}
+
+// Start database restore
+async function startRestore() {
+    const backupFilePath = document.getElementById('backup-file-path').value.trim();
+    const restoreMode = document.querySelector('input[name="restore-mode"]:checked').value;
+    const startBtn = document.getElementById('restore-start-btn');
+    
+    if (!backupFilePath) {
+        showMessage('Укажите путь к файлу резервной копии', 'error');
+        return;
+    }
+    
+    // Confirm the operation
+    const modeText = restoreMode === 'replace' ? 'заменить все данные' : 'объединить с существующими данными';
+    const confirmMessage = `Вы уверены, что хотите ${modeText} из файла:\n${backupFilePath}?\n\nЭта операция необратима!`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    // Disable button and show loading
+    startBtn.disabled = true;
+    startBtn.textContent = '⏳ Восстановление...';
+    
+    try {
+        console.log(`🔄 Starting database restore from ${backupFilePath} in ${restoreMode} mode`);
+        
+        const result = await apiCall('/restore', {
+            method: 'POST',
+            body: JSON.stringify({
+                backupFile: backupFilePath,
+                mode: restoreMode
+            })
+        });
+        
+        console.log('✅ Restore completed:', result);
+        
+        // Close modal
+        closeRestoreModal();
+        
+        // Show success message with details
+        const details = `Восстановлено: ${result.restoredCount} записей`;
+        const skipped = result.skippedCount > 0 ? `, пропущено: ${result.skippedCount}` : '';
+        const errors = result.errorCount > 0 ? `, ошибок: ${result.errorCount}` : '';
+        
+        showMessage(`${result.message}. ${details}${skipped}${errors}`, 'success');
+        
+        // Reload stats and files
+        loadStats();
+        loadFiles();
+        
+        // If in tree view, reload tree
+        if (document.getElementById('files-tree-container')) {
+            loadFileTree('', true); // Force refresh
+        }
+        
+    } catch (error) {
+        console.error('❌ Database restore failed:', error);
+        
+        let errorMessage = 'Ошибка восстановления базы данных';
+        if (error.message) {
+            errorMessage += `: ${error.message}`;
+        }
+        
+        showMessage(errorMessage, 'error');
+    } finally {
+        // Reset button
+        startBtn.disabled = false;
+        startBtn.textContent = '📥 Восстановить';
     }
 }

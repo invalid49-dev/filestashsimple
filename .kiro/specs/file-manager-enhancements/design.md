@@ -106,6 +106,92 @@ scanProgress.set(scanId, {
 });
 ```
 
+### 4. Integrity Check Enhancement System
+
+#### Backend Components
+
+**Modified Integrity Check Function**:
+```javascript
+// New non-destructive integrity check
+app.post('/api/database/integrity-check', async (req, res) => {
+    const missingFiles = [];
+    
+    // Check all database records without deleting
+    db.all('SELECT * FROM files', (err, rows) => {
+        rows.forEach(file => {
+            if (!fs.existsSync(file.full_path)) {
+                missingFiles.push({
+                    id: file.id,
+                    path: file.full_path,
+                    filename: file.filename,
+                    isDirectory: file.is_directory
+                });
+            }
+        });
+        
+        // Create missed_files.txt report
+        const reportContent = missingFiles.map(file => 
+            `${file.isDirectory ? '[DIR]' : '[FILE]'} ${file.path}`
+        ).join('\n');
+        
+        fs.writeFileSync('./missed_files.txt', reportContent);
+        
+        res.json({
+            totalChecked: rows.length,
+            missingCount: missingFiles.length,
+            reportFile: './missed_files.txt',
+            missingFiles: missingFiles
+        });
+    });
+});
+```
+
+### 5. Interface Scaling System
+
+#### CSS Enhancements
+
+**Increased Container and Font Sizes**:
+```css
+.container {
+    max-width: 1600px; /* Increased from 1200px */
+    margin: 0 auto;
+    padding: 30px; /* Increased padding */
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 16px; /* Increased base font size */
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.header h1 {
+    font-size: 2.5rem; /* Larger header */
+    color: #2c3e50;
+    margin-bottom: 15px;
+}
+
+.tab {
+    padding: 15px 30px; /* Increased padding */
+    font-size: 16px; /* Larger tab font */
+    font-weight: 500;
+}
+
+.btn {
+    padding: 12px 24px; /* Larger buttons */
+    font-size: 16px; /* Larger button text */
+    font-weight: 500;
+}
+
+table {
+    font-size: 15px; /* Larger table text */
+}
+
+th, td {
+    padding: 15px 18px; /* Increased cell padding */
+}
+```
+
 **New API Endpoint**: `/api/scan/stop/:scanId`
 ```javascript
 app.post('/api/scan/stop/:scanId', (req, res) => {

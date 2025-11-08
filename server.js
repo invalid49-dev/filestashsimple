@@ -9,7 +9,7 @@ const archiver = require('archiver');
 const net = require('net');
 const open = require('open');
 const iconv = require('iconv-lite');
-const chokidar = require('chokidar');
+
 
 const app = express();
 let PORT = 3000;
@@ -22,95 +22,13 @@ app.use(express.static('public'));
 // Initialize SQLite database
 const db = new sqlite3.Database('./filestash.db');
 
-// File system watchers
-const watchers = new Map();
-let isWatchingEnabled = false;
 
-// Function to start watching a directory
-function startWatchingDirectory(dirPath) {
-    if (watchers.has(dirPath)) {
-        return; // Already watching
-    }
-    
-    console.log('Starting to watch directory:', dirPath);
-    
-    const watcher = chokidar.watch(dirPath, {
-        ignored: /(^|[\/\\])\../, // ignore dotfiles
-        persistent: true,
-        ignoreInitial: true,
-        depth: 10 // Limit depth to prevent performance issues
-    });
-    
-    watcher
-        .on('unlink', (filePath) => {
-            console.log('File deleted:', filePath);
-            removeFileFromDatabase(filePath);
-        })
-        .on('unlinkDir', (dirPath) => {
-            console.log('Directory deleted:', dirPath);
-            removeDirectoryFromDatabase(dirPath);
-        })
-        .on('error', (error) => {
-            console.error('Watcher error:', error);
-        });
-    
-    watchers.set(dirPath, watcher);
-}
 
-// Function to stop watching a directory
-function stopWatchingDirectory(dirPath) {
-    const watcher = watchers.get(dirPath);
-    if (watcher) {
-        watcher.close();
-        watchers.delete(dirPath);
-        console.log('Stopped watching directory:', dirPath);
-    }
-}
 
-// Function to remove file from database
-function removeFileFromDatabase(filePath) {
-    db.run('DELETE FROM files WHERE full_path = ?', [filePath], function(err) {
-        if (err) {
-            console.error('Error removing file from database:', err);
-        } else if (this.changes > 0) {
-            console.log('Removed file from database:', filePath);
-        }
-    });
-}
 
-// Function to remove directory and all its contents from database
-function removeDirectoryFromDatabase(dirPath) {
-    db.run('DELETE FROM files WHERE full_path LIKE ?', [dirPath + '%'], function(err) {
-        if (err) {
-            console.error('Error removing directory from database:', err);
-        } else if (this.changes > 0) {
-            console.log(`Removed directory and ${this.changes} files from database:`, dirPath);
-        }
-    });
-}
 
-// Function to start watching all scanned directories
-function startWatchingScannedDirectories() {
-    if (!isWatchingEnabled) {
-        isWatchingEnabled = true;
-        
-        // Get all unique directories from database
-        db.all('SELECT DISTINCT directory FROM files', (err, rows) => {
-            if (err) {
-                console.error('Error getting directories for watching:', err);
-                return;
-            }
-            
-            rows.forEach(row => {
-                if (row.directory && fs.existsSync(row.directory)) {
-                    startWatchingDirectory(row.directory);
-                }
-            });
-            
-            console.log(`Started watching ${rows.length} directories`);
-        });
-    }
-}
+
+
 
 // Create tables with optimizations
 db.serialize(() => {
@@ -311,6 +229,14 @@ function buildFileTree(files) {
                 
                 // If this is the actual file/folder from database, add its data
                 if (isLastPart) {
+                    // Check if file exists on disk
+                    let existsOnDisk = false;
+                    try {
+                        existsOnDisk = fs.existsSync(file.full_path);
+                    } catch (error) {
+                        existsOnDisk = false;
+                    }
+                    
                     currentLevel[part].fileData = {
                         id: file.id,
                         filename: file.filename,
@@ -322,6 +248,7 @@ function buildFileTree(files) {
                     };
                     currentLevel[part].isDirectory = file.is_directory === 1;
                     currentLevel[part].inDatabase = true;
+                    currentLevel[part].existsOnDisk = existsOnDisk;
                     
                     // Remove children for files
                     if (!file.is_directory) {
@@ -996,39 +923,10 @@ app.get('/api/files/tree', (req, res) => {
         }
         
         try {
-            // Check if files exist and remove non-existent ones
-            const existingFiles = [];
-            const filesToRemove = [];
-            
-            for (const row of rows) {
-                try {
-                    if (fs.existsSync(row.full_path)) {
-                        existingFiles.push(row);
-                    } else {
-                        filesToRemove.push(row.id);
-                    }
-                } catch (checkError) {
-                    // If we can't check, assume it doesn't exist
-                    filesToRemove.push(row.id);
-                }
-            }
-            
-            // Remove non-existent files from database
-            if (filesToRemove.length > 0) {
-                console.log(`Removing ${filesToRemove.length} non-existent files from database`);
-                const placeholders = filesToRemove.map(() => '?').join(',');
-                const deleteQuery = `DELETE FROM files WHERE id IN (${placeholders})`;
-                
-                db.run(deleteQuery, filesToRemove, function(deleteErr) {
-                    if (deleteErr) {
-                        console.error('Error removing non-existent files:', deleteErr);
-                    } else {
-                        console.log(`Removed ${this.changes} non-existent files from database`);
-                    }
-                });
-            }
-            
-            const tree = buildFileTree(existingFiles);
+            // Build tree from all database records (including missing files)
+            // Note: We no longer automatically remove missing files from database
+            // This preserves data integrity and allows users to see what files are missing
+            const tree = buildFileTree(rows);
             
             // Prevent caching
             res.set({
@@ -1140,11 +1038,128 @@ app.delete('/api/scan-history', (req, res) => {
 
 // Clear database
 app.post('/api/clear', (req, res) => {
-    db.run('DELETE FROM files', function(err) {
-        if (err) {
-            return res.status(500).json({ error: err.message });
+    const deletedCount = { count: 0 };
+    let responseSent = false;
+    
+    const sendResponse = (statusCode, data) => {
+        if (!responseSent) {
+            responseSent = true;
+            if (statusCode === 200) {
+                res.json(data);
+            } else {
+                res.status(statusCode).json(data);
+            }
         }
-        res.json({ message: `База данных очищена. Удалено ${this.changes} записей.` });
+    };
+    
+    db.serialize(() => {
+        // First, delete all records
+        db.run('DELETE FROM files', function(err) {
+            if (err) {
+                return sendResponse(500, { error: err.message });
+            }
+            deletedCount.count = this.changes;
+            console.log(`🗑️ Deleted ${this.changes} records from database`);
+        });
+        
+        // Force WAL checkpoint before switching modes
+        db.run('PRAGMA wal_checkpoint(TRUNCATE)', function(err) {
+            if (err) {
+                console.error('❌ WAL checkpoint failed:', err.message);
+            } else {
+                console.log('📝 WAL checkpoint completed');
+            }
+        });
+        
+        // Switch to DELETE mode to force WAL checkpoint
+        db.run('PRAGMA journal_mode = DELETE', function(err) {
+            if (err) {
+                console.error('❌ Failed to switch journal mode:', err.message);
+            } else {
+                console.log('📝 Switched to DELETE journal mode');
+            }
+        });
+        
+        // Then, vacuum to physically remove deleted data and shrink file
+        db.run('VACUUM', function(err) {
+            if (err) {
+                console.error('❌ VACUUM failed:', err.message);
+                return sendResponse(500, { error: `Записи удалены, но не удалось сжать файл: ${err.message}` });
+            }
+            console.log('✅ Database file physically cleaned and compacted');
+            
+            // Switch back to WAL mode for better performance
+            db.run('PRAGMA journal_mode = WAL', function(walErr) {
+                if (walErr) {
+                    console.error('❌ Failed to switch back to WAL mode:', walErr.message);
+                } else {
+                    console.log('📝 Switched back to WAL journal mode');
+                }
+                
+                sendResponse(200, { 
+                    message: `База данных полностью очищена. Удалено ${deletedCount.count} записей. Файл базы данных физически сжат.` 
+                });
+            });
+        });
+    });
+});
+
+// Compact database - force shrink database file
+app.post('/api/compact', (req, res) => {
+    console.log('🗜️ Starting database compaction...');
+    let responseSent = false;
+    
+    const sendResponse = (statusCode, data) => {
+        if (!responseSent) {
+            responseSent = true;
+            if (statusCode === 200) {
+                res.json(data);
+            } else {
+                res.status(statusCode).json(data);
+            }
+        }
+    };
+    
+    db.serialize(() => {
+        // Force WAL checkpoint first
+        db.run('PRAGMA wal_checkpoint(TRUNCATE)', function(err) {
+            if (err) {
+                console.error('❌ WAL checkpoint failed:', err.message);
+            } else {
+                console.log('📝 WAL checkpoint completed');
+            }
+        });
+        
+        // Switch to DELETE mode to force WAL checkpoint
+        db.run('PRAGMA journal_mode = DELETE', function(err) {
+            if (err) {
+                console.error('❌ Failed to switch journal mode:', err.message);
+                return sendResponse(500, { error: `Не удалось переключить режим журнала: ${err.message}` });
+            }
+            console.log('📝 Switched to DELETE journal mode');
+        });
+        
+        // Run VACUUM to compact the database
+        db.run('VACUUM', function(err) {
+            if (err) {
+                console.error('❌ VACUUM failed:', err.message);
+                return sendResponse(500, { error: `Не удалось сжать базу данных: ${err.message}` });
+            }
+            console.log('✅ Database compacted successfully');
+            
+            // Switch back to WAL mode
+            db.run('PRAGMA journal_mode = WAL', function(walErr) {
+                if (walErr) {
+                    console.error('❌ Failed to switch back to WAL mode:', walErr.message);
+                } else {
+                    console.log('📝 Switched back to WAL journal mode');
+                }
+                
+                sendResponse(200, { 
+                    message: 'База данных успешно сжата. Размер файла оптимизирован.' 
+                });
+            });
+        });
     });
 });
 
@@ -1170,6 +1185,156 @@ app.post('/api/backup', (req, res) => {
             res.status(500).json({ error: error.message });
         }
     });
+});
+
+// Restore database from backup
+app.post('/api/restore', (req, res) => {
+    const { backupFile, mode } = req.body;
+    
+    if (!backupFile) {
+        return res.status(400).json({ error: 'Backup file path is required' });
+    }
+    
+    // Validate mode (replace or merge)
+    const restoreMode = mode || 'replace';
+    if (!['replace', 'merge'].includes(restoreMode)) {
+        return res.status(400).json({ error: 'Mode must be either "replace" or "merge"' });
+    }
+    
+    try {
+        // Check if backup file exists
+        if (!fs.existsSync(backupFile)) {
+            return res.status(404).json({ error: 'Backup file not found' });
+        }
+        
+        // Read and parse backup file
+        const backupData = fs.readFileSync(backupFile, 'utf8');
+        let records;
+        
+        try {
+            records = JSON.parse(backupData);
+        } catch (parseError) {
+            return res.status(400).json({ error: 'Invalid backup file format' });
+        }
+        
+        // Validate backup data structure
+        if (!Array.isArray(records)) {
+            return res.status(400).json({ error: 'Backup file must contain an array of records' });
+        }
+        
+        // Validate each record has required fields
+        const requiredFields = ['full_path', 'directory', 'filename'];
+        for (let i = 0; i < records.length; i++) {
+            const record = records[i];
+            for (const field of requiredFields) {
+                if (!record.hasOwnProperty(field)) {
+                    return res.status(400).json({ 
+                        error: `Record ${i} is missing required field: ${field}` 
+                    });
+                }
+            }
+        }
+        
+        console.log(`🔄 Starting database restore from ${backupFile}`);
+        console.log(`📊 Restore mode: ${restoreMode}`);
+        console.log(`📄 Records to restore: ${records.length}`);
+        
+        // Perform restore operation
+        db.serialize(() => {
+            db.run('BEGIN TRANSACTION');
+            
+            let restoredCount = 0;
+            let skippedCount = 0;
+            let errorCount = 0;
+            
+            // If replace mode, clear existing data first
+            if (restoreMode === 'replace') {
+                db.run('DELETE FROM files', function(deleteErr) {
+                    if (deleteErr) {
+                        console.error('❌ Error clearing database:', deleteErr);
+                        db.run('ROLLBACK');
+                        return res.status(500).json({ error: 'Failed to clear database' });
+                    }
+                    console.log(`🗑️ Cleared ${this.changes} existing records`);
+                });
+            }
+            
+            // Prepare insert statement
+            const insertStmt = db.prepare(`INSERT OR ${restoreMode === 'merge' ? 'IGNORE' : 'REPLACE'} INTO files 
+                (full_path, directory, filename, extension, size, created_time, modified_time, is_directory, attributes, crc32)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+            
+            // Insert each record
+            records.forEach((record, index) => {
+                try {
+                    insertStmt.run([
+                        record.full_path,
+                        record.directory,
+                        record.filename,
+                        record.extension || '',
+                        record.size || 0,
+                        record.created_time || new Date().toISOString(),
+                        record.modified_time || new Date().toISOString(),
+                        record.is_directory || 0,
+                        record.attributes || '',
+                        record.crc32 || null
+                    ], function(insertErr) {
+                        if (insertErr) {
+                            if (restoreMode === 'merge' && insertErr.code === 'SQLITE_CONSTRAINT') {
+                                // In merge mode, duplicates are expected and ignored
+                                skippedCount++;
+                            } else {
+                                console.error(`❌ Error inserting record ${index}:`, insertErr);
+                                errorCount++;
+                            }
+                        } else {
+                            restoredCount++;
+                        }
+                        
+                        // Check if this is the last record
+                        if (index === records.length - 1) {
+                            insertStmt.finalize();
+                            
+                            if (errorCount > 0 && restoreMode === 'replace') {
+                                console.error(`❌ Restore failed with ${errorCount} errors`);
+                                db.run('ROLLBACK');
+                                return res.status(500).json({ 
+                                    error: `Restore failed with ${errorCount} errors` 
+                                });
+                            } else {
+                                db.run('COMMIT', (commitErr) => {
+                                    if (commitErr) {
+                                        console.error('❌ Commit failed:', commitErr);
+                                        return res.status(500).json({ error: 'Failed to commit restore' });
+                                    }
+                                    
+                                    console.log(`✅ Database restore completed successfully`);
+                                    console.log(`📊 Restored: ${restoredCount}, Skipped: ${skippedCount}, Errors: ${errorCount}`);
+                                    
+                                    res.json({
+                                        message: 'Database restored successfully',
+                                        mode: restoreMode,
+                                        backupFile: backupFile,
+                                        totalRecords: records.length,
+                                        restoredCount: restoredCount,
+                                        skippedCount: skippedCount,
+                                        errorCount: errorCount
+                                    });
+                                });
+                            }
+                        }
+                    });
+                } catch (recordError) {
+                    console.error(`❌ Error processing record ${index}:`, recordError);
+                    errorCount++;
+                }
+            });
+        });
+        
+    } catch (error) {
+        console.error('❌ Restore operation failed:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Helper function to validate and suggest safe destination paths
@@ -1562,6 +1727,33 @@ app.post('/api/files/remove-from-database', async (req, res) => {
     }
 });
 
+// Stop integrity check operation
+app.post('/api/files/integrity-check/stop/:checkId', (req, res) => {
+    const { checkId } = req.params;
+    const progress = integrityProgress.get(checkId);
+    
+    if (!progress) {
+        return res.status(404).json({ error: 'Integrity check not found' });
+    }
+    
+    if (progress.status !== 'running') {
+        return res.status(400).json({ 
+            error: 'Integrity check is not active', 
+            currentStatus: progress.status 
+        });
+    }
+    
+    // Request cancellation
+    progress.cancellationRequested = true;
+    console.log(`🛑 Cancellation requested for integrity check ${checkId}`);
+    
+    res.json({ 
+        message: 'Integrity check cancellation requested',
+        checkId: checkId,
+        status: 'cancellation_requested'
+    });
+});
+
 // Clean up database - remove records for files that no longer exist on disk
 app.post('/api/files/cleanup-database', async (req, res) => {
     try {
@@ -1616,8 +1808,24 @@ app.post('/api/files/cleanup-database', async (req, res) => {
             });
         }
         
+        // If files were removed, vacuum the database to reclaim space
+        if (filesToRemove.length > 0) {
+            console.log('🗜️ Compacting database file...');
+            await new Promise((resolve, reject) => {
+                db.run('VACUUM', function(err) {
+                    if (err) {
+                        console.error('❌ VACUUM failed:', err.message);
+                        reject(err);
+                    } else {
+                        console.log('✅ Database file compacted');
+                        resolve();
+                    }
+                });
+            });
+        }
+        
         res.json({ 
-            message: 'Database cleanup completed',
+            message: `Database cleanup completed${filesToRemove.length > 0 ? ' and compacted' : ''}`,
             totalFiles: allFiles.length,
             removedFiles: filesToRemove.length,
             remainingFiles: allFiles.length - filesToRemove.length
@@ -1629,33 +1837,519 @@ app.post('/api/files/cleanup-database', async (req, res) => {
     }
 });
 
-// Enable/disable file system monitoring
-app.post('/api/files/toggle-monitoring', (req, res) => {
-    const { enabled } = req.body;
+// Global integrity check progress tracking
+const integrityProgress = new Map();
+
+// File integrity check
+app.post('/api/files/integrity-check', async (req, res) => {
+    const { path: checkPath, checkCRC32, checkExistence, threads } = req.body;
     
-    if (enabled && !isWatchingEnabled) {
-        startWatchingScannedDirectories();
-        res.json({ message: 'File system monitoring enabled', enabled: true });
-    } else if (!enabled && isWatchingEnabled) {
-        // Stop all watchers
-        watchers.forEach((watcher, dirPath) => {
-            stopWatchingDirectory(dirPath);
+    if (!checkPath) {
+        return res.status(400).json({ error: 'Path is required for integrity check' });
+    }
+    
+    const checkId = Date.now().toString();
+    
+    try {
+        console.log(`Starting integrity check for: ${checkPath}`);
+        console.log(`Original path length: ${checkPath.length}`);
+        console.log(`Path characters: ${JSON.stringify(checkPath.split(''))}`);
+        console.log(`Check CRC32: ${checkCRC32}, Check Existence: ${checkExistence}`);
+        
+        // Get all files from database for the specified path
+        let sqlQuery, sqlParams;
+        
+        if (checkPath === '.') {
+            // For current directory, get all files (both relative and absolute paths)
+            sqlQuery = `SELECT id, full_path, filename, crc32, size, is_directory FROM files 
+                       WHERE full_path NOT LIKE '%node_modules%' 
+                       ORDER BY full_path`;
+            sqlParams = [];
+        } else {
+            // For other paths, try to find the best match in database
+            console.log(`Looking for paths containing: ${checkPath}`);
+            
+            // First, try exact match
+            let normalizedPath = checkPath.replace(/\//g, '\\');
+            
+            // If no slashes, try to find similar paths in database
+            if (!normalizedPath.includes('\\') && !normalizedPath.includes('/')) {
+                console.log(`Path has no separators, searching for similar paths...`);
+                
+                // Try to find paths that contain parts of this path
+                const pathParts = normalizedPath.split(/(?=[A-Z])|(?<=:)/);
+                console.log(`Path parts: ${JSON.stringify(pathParts)}`);
+                
+                // For now, let's try a broader search
+                sqlQuery = 'SELECT id, full_path, filename, crc32, size, is_directory FROM files WHERE full_path LIKE ? OR full_path LIKE ? ORDER BY full_path';
+                sqlParams = [`%${pathParts[0]}%`, `%${pathParts[pathParts.length-1]}%`];
+            } else {
+                sqlQuery = 'SELECT id, full_path, filename, crc32, size, is_directory FROM files WHERE full_path LIKE ? ORDER BY full_path';
+                sqlParams = [`${normalizedPath}%`];
+            }
+        }
+        
+        console.log(`🔍 Executing SQL query for path: ${checkPath}`);
+        console.log(`📝 Normalized params: ${JSON.stringify(sqlParams)}`);
+        console.log(`📝 SQL: ${sqlQuery}`);
+        
+        const files = await new Promise((resolve, reject) => {
+            db.all(sqlQuery, sqlParams, (err, rows) => {
+                if (err) {
+                    console.error(`❌ SQL Error: ${err.message}`);
+                    reject(err);
+                } else {
+                    console.log(`✅ Found ${rows.length} files in database`);
+                    resolve(rows);
+                }
+            });
         });
-        isWatchingEnabled = false;
-        res.json({ message: 'File system monitoring disabled', enabled: false });
-    } else {
-        res.json({ message: 'Monitoring state unchanged', enabled: isWatchingEnabled });
+        
+        if (files.length === 0) {
+            return res.json({
+                message: 'No files found in database for the specified path',
+                totalFiles: 0,
+                results: {
+                    missingFiles: [],
+                    crcMismatches: [],
+                    checkedFiles: 0
+                }
+            });
+        }
+        
+        console.log(`Found ${files.length} files in database for integrity check`);
+        
+        // Parse thread count first
+        const threadCount = parseInt(threads) || 4;
+        
+        // Initialize progress tracking
+        integrityProgress.set(checkId, {
+            total: files.length,
+            processed: 0,
+            status: 'running',
+            startTime: Date.now(),
+            checkPath: checkPath,
+            checkCRC32: checkCRC32,
+            checkExistence: checkExistence,
+            threadCount: threadCount,
+            cancellationRequested: false,
+            cancelled: false
+        });
+        
+        const results = {
+            missingFiles: [],
+            crcMismatches: [],
+            checkedFiles: 0
+        };
+        
+        // Start integrity check asynchronously
+        performIntegrityCheckAsync(checkId, files, checkCRC32, checkExistence, checkPath, threadCount);
+        
+        // Return immediately with check ID
+        res.json({
+            checkId: checkId,
+            message: 'Integrity check started',
+            totalFiles: files.length
+        });
+        
+    } catch (error) {
+        console.error('Integrity check failed:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 
-// Get monitoring status
-app.get('/api/files/monitoring-status', (req, res) => {
-    res.json({ 
-        enabled: isWatchingEnabled,
-        watchedDirectories: Array.from(watchers.keys()),
-        watcherCount: watchers.size
-    });
+// Async integrity check function
+async function performIntegrityCheckAsync(checkId, files, checkCRC32, checkExistence, checkPath, threadCount = 4) {
+    const progress = integrityProgress.get(checkId);
+    
+    if (!progress) {
+        console.error(`❌ Progress not found for checkId: ${checkId}`);
+        return;
+    }
+    
+    console.log(`🔍 Starting integrity check async for ${files.length} files`);
+    
+    try {
+        const results = {
+            missingFiles: [],
+            crcMismatches: [],
+            checkedFiles: 0
+        };
+        
+        // Create scan logs directory
+        const scanLogsDir = './scan-logs';
+        await fse.ensureDir(scanLogsDir);
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const logFileName = `integrity-check-${timestamp}.log`;
+        const logFilePath = path.join(scanLogsDir, logFileName);
+        
+        const logEntries = [];
+        logEntries.push(`=== File Integrity Check Started ===`);
+        logEntries.push(`Timestamp: ${new Date().toISOString()}`);
+        logEntries.push(`Check Path: ${checkPath}`);
+        logEntries.push(`Check CRC32: ${checkCRC32}`);
+        logEntries.push(`Check Existence: ${checkExistence}`);
+        logEntries.push(`Total Files in Database: ${files.length}`);
+        logEntries.push(`==========================================\n`);
+        
+        // Multi-threaded integrity check
+        console.log(`⚡ Processing ${files.length} files with ${threadCount} threads...`);
+        
+        // Create chunks for parallel processing
+        const chunkSize = Math.ceil(files.length / threadCount);
+        const chunks = [];
+        
+        for (let i = 0; i < files.length; i += chunkSize) {
+            chunks.push(files.slice(i, i + chunkSize));
+        }
+        
+        console.log(`📊 Created ${chunks.length} chunks for parallel processing`);
+        
+        // Process chunks in parallel
+        const chunkPromises = chunks.map(async (chunk, chunkIndex) => {
+            const chunkResults = {
+                missingFiles: [],
+                crcMismatches: [],
+                checkedFiles: 0,
+                logEntries: []
+            };
+            
+            for (const file of chunk) {
+                // Check for cancellation
+                if (progress.cancellationRequested) {
+                    console.log(`🛑 Chunk ${chunkIndex} stopping due to cancellation request`);
+                    break;
+                }
+                
+                let fileExists = false;
+                let isDirectory = false;
+                
+                // Check file existence first
+                try {
+                    if (fs.existsSync(file.full_path)) {
+                        fileExists = true;
+                        const stats = fs.statSync(file.full_path);
+                        isDirectory = stats.isDirectory();
+                        chunkResults.logEntries.push(`OK: ${file.full_path}`);
+                    } else {
+                        fileExists = false;
+                    }
+                } catch (error) {
+                    fileExists = false;
+                    chunkResults.logEntries.push(`ERROR accessing ${file.full_path}: ${error.message}`);
+                }
+                
+                // Record missing files
+                if (checkExistence && !fileExists) {
+                    chunkResults.missingFiles.push({
+                        id: file.id,
+                        path: file.full_path,
+                        filename: file.filename
+                    });
+                    chunkResults.logEntries.push(`❌ MISSING: ${file.full_path}`);
+                    console.log(`❌ Missing file: ${file.full_path}`);
+                }
+                
+                // Check CRC32 if file exists and is not a directory
+                if (checkCRC32 && fileExists && !isDirectory) {
+                    try {
+                        console.log(`🔍 Checking CRC32 for: ${file.filename}`);
+                        const currentCRC32 = calculateCRC32(file.full_path);
+                        
+                        if (file.crc32 && currentCRC32 && currentCRC32 !== file.crc32) {
+                            chunkResults.crcMismatches.push({
+                                id: file.id,
+                                path: file.full_path,
+                                filename: file.filename,
+                                originalCRC32: file.crc32,
+                                currentCRC32: currentCRC32,
+                                size: file.size
+                            });
+                            chunkResults.logEntries.push(`⚠️ CRC MISMATCH: ${file.full_path}`);
+                            chunkResults.logEntries.push(`  Original CRC32: ${file.crc32}`);
+                            chunkResults.logEntries.push(`  Current CRC32:  ${currentCRC32}`);
+                            console.log(`⚠️ CRC mismatch: ${file.filename} (${file.crc32} → ${currentCRC32})`);
+                        } else if (currentCRC32) {
+                            chunkResults.logEntries.push(`✅ CRC OK: ${file.full_path} (${currentCRC32})`);
+                            console.log(`✅ CRC OK: ${file.filename}`);
+                        } else {
+                            chunkResults.logEntries.push(`❌ ERROR: Could not calculate CRC32 for ${file.full_path}`);
+                            console.log(`❌ Could not calculate CRC32 for: ${file.filename}`);
+                        }
+                    } catch (error) {
+                        chunkResults.logEntries.push(`❌ ERROR checking CRC32 for ${file.full_path}: ${error.message}`);
+                        console.error(`Error checking CRC32 for ${file.full_path}:`, error);
+                    }
+                }
+                
+                chunkResults.checkedFiles++;
+                
+                // Update global progress
+                progress.processed++;
+                
+                // Log progress
+                const progressPercent = Math.round((progress.processed / files.length) * 100);
+                if (progress.processed % 50 === 0 || progress.processed === files.length) {
+                    console.log(`🔍 Integrity check progress: ${progressPercent}% (${progress.processed}/${files.length})`);
+                }
+            }
+            
+            return chunkResults;
+        });
+        
+        // Wait for all chunks to complete
+        const chunkResults = await Promise.all(chunkPromises);
+        
+        // Merge results from all chunks
+        for (const chunkResult of chunkResults) {
+            results.missingFiles.push(...chunkResult.missingFiles);
+            results.crcMismatches.push(...chunkResult.crcMismatches);
+            results.checkedFiles += chunkResult.checkedFiles;
+            logEntries.push(...chunkResult.logEntries);
+        }
+        
+        // Additional check for renamed files (files with same CRC32 but different names)
+        const renamedFiles = [];
+        if (checkCRC32 && results.missingFiles.length > 0) {
+            console.log('🔍 Checking for renamed files...');
+            logEntries.push(`\n=== Checking for Renamed Files ===`);
+            
+            // Get all missing files that have CRC32
+            const missingWithCRC = results.missingFiles.filter(f => {
+                const dbFile = files.find(dbF => dbF.id === f.id);
+                return dbFile && dbFile.crc32;
+            });
+            
+            for (const missingFile of missingWithCRC) {
+                const dbFile = files.find(f => f.id === missingFile.id);
+                if (!dbFile || !dbFile.crc32) continue;
+                
+                // Look for files in the same directory with the same CRC32
+                const dirPath = path.dirname(missingFile.path);
+                try {
+                    if (fs.existsSync(dirPath)) {
+                        const dirFiles = fs.readdirSync(dirPath);
+                        for (const dirFile of dirFiles) {
+                            const fullPath = path.join(dirPath, dirFile);
+                            try {
+                                const stats = fs.statSync(fullPath);
+                                if (!stats.isDirectory() && stats.size === dbFile.size) {
+                                    const currentCRC32 = calculateCRC32(fullPath); // Remove await
+                                    if (currentCRC32 && currentCRC32 === dbFile.crc32) {
+                                        renamedFiles.push({
+                                            originalPath: missingFile.path,
+                                            newPath: fullPath,
+                                            originalName: missingFile.filename,
+                                            newName: dirFile,
+                                            crc32: currentCRC32,
+                                            size: dbFile.size
+                                        });
+                                        logEntries.push(`🔄 RENAMED: ${missingFile.path} → ${fullPath}`);
+                                        console.log(`🔄 Found renamed file: ${missingFile.filename} → ${dirFile}`);
+                                        break;
+                                    }
+                                }
+                            } catch (error) {
+                                // Skip files we can't access
+                            }
+                        }
+                    }
+                } catch (error) {
+                    logEntries.push(`❌ ERROR checking directory ${dirPath}: ${error.message}`);
+                }
+            }
+        }
+        
+        // Write summary to log
+        logEntries.push(`\n=== Integrity Check Summary ===`);
+        logEntries.push(`Files Checked: ${results.checkedFiles}`);
+        logEntries.push(`Missing Files: ${results.missingFiles.length}`);
+        logEntries.push(`CRC Mismatches: ${results.crcMismatches.length}`);
+        logEntries.push(`Renamed Files: ${renamedFiles.length}`);
+        logEntries.push(`Completed: ${new Date().toISOString()}`);
+        logEntries.push(`================================`);
+        
+        // Add renamed files to results
+        results.renamedFiles = renamedFiles;
+        
+        // Save log file
+        await fse.writeFile(logFilePath, logEntries.join('\n'));
+        
+        console.log(`Integrity check completed. Log saved to: ${logFilePath}`);
+        
+        // Update progress to completed
+        progress.status = 'completed';
+        progress.endTime = Date.now();
+        progress.results = results;
+        progress.logFile = logFilePath;
+        
+    } catch (error) {
+        console.error('Integrity check failed:', error);
+        progress.status = 'error';
+        progress.error = error.message;
+        progress.endTime = Date.now();
+    }
+}
+
+// Get integrity check progress
+app.get('/api/files/integrity-check/progress/:checkId', (req, res) => {
+    const { checkId } = req.params;
+    const progress = integrityProgress.get(checkId);
+    
+    if (!progress) {
+        return res.status(404).json({ error: 'Integrity check not found' });
+    }
+    
+    res.json(progress);
 });
+
+// Non-destructive database integrity check
+app.post('/api/database/integrity-check', async (req, res) => {
+    console.log('🔍 Starting non-destructive database integrity check...');
+    
+    const checkId = Date.now().toString();
+    
+    try {
+        // Get all files from database
+        const files = await new Promise((resolve, reject) => {
+            db.all('SELECT id, full_path, filename, is_directory FROM files ORDER BY full_path', (err, rows) => {
+                if (err) {
+                    console.error('❌ Database query error:', err.message);
+                    reject(err);
+                } else {
+                    console.log(`✅ Found ${rows.length} records in database`);
+                    resolve(rows);
+                }
+            });
+        });
+        
+        if (files.length === 0) {
+            return res.json({
+                message: 'Database is empty',
+                totalChecked: 0,
+                missingCount: 0,
+                reportFile: null,
+                missingFiles: []
+            });
+        }
+        
+        // Initialize progress tracking
+        integrityProgress.set(checkId, {
+            total: files.length,
+            processed: 0,
+            status: 'running',
+            startTime: Date.now(),
+            checkType: 'database-integrity',
+            cancellationRequested: false,
+            cancelled: false
+        });
+        
+        // Start integrity check asynchronously
+        performDatabaseIntegrityCheckAsync(checkId, files);
+        
+        // Return immediately with check ID
+        res.json({
+            checkId: checkId,
+            message: 'Database integrity check started',
+            totalFiles: files.length
+        });
+        
+    } catch (error) {
+        console.error('❌ Database integrity check failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Async database integrity check function
+async function performDatabaseIntegrityCheckAsync(checkId, files) {
+    const progress = integrityProgress.get(checkId);
+    
+    if (!progress) {
+        console.error(`❌ Progress not found for checkId: ${checkId}`);
+        return;
+    }
+    
+    console.log(`🔍 Starting database integrity check for ${files.length} records`);
+    
+    try {
+        const missingFiles = [];
+        let checkedCount = 0;
+        
+        // Check each file/directory existence
+        for (const file of files) {
+            // Check for cancellation
+            if (progress.cancellationRequested) {
+                console.log(`🛑 Database integrity check cancelled at ${checkedCount}/${files.length}`);
+                progress.status = 'cancelled';
+                progress.cancelled = true;
+                progress.endTime = Date.now();
+                return;
+            }
+            
+            try {
+                if (!fs.existsSync(file.full_path)) {
+                    missingFiles.push({
+                        id: file.id,
+                        path: file.full_path,
+                        filename: file.filename,
+                        isDirectory: file.is_directory === 1
+                    });
+                    console.log(`❌ Missing: ${file.full_path}`);
+                }
+            } catch (error) {
+                // If we can't check, assume it doesn't exist
+                missingFiles.push({
+                    id: file.id,
+                    path: file.full_path,
+                    filename: file.filename,
+                    isDirectory: file.is_directory === 1,
+                    error: error.message
+                });
+                console.log(`❌ Error checking ${file.full_path}: ${error.message}`);
+            }
+            
+            checkedCount++;
+            progress.processed = checkedCount;
+            
+            // Log progress every 100 files
+            if (checkedCount % 100 === 0) {
+                const progressPercent = Math.round((checkedCount / files.length) * 100);
+                console.log(`🔍 Database integrity check progress: ${progressPercent}% (${checkedCount}/${files.length})`);
+            }
+        }
+        
+        // Generate missed_files.txt report
+        const reportContent = missingFiles.map(file => {
+            const prefix = file.isDirectory ? '[DIR]' : '[FILE]';
+            return `${prefix} ${file.path}`;
+        }).join('\n');
+        
+        const reportPath = './missed_files.txt';
+        await fse.writeFile(reportPath, reportContent);
+        
+        console.log(`📄 Missing files report saved to: ${reportPath}`);
+        console.log(`✅ Database integrity check completed. Found ${missingFiles.length} missing files out of ${files.length} checked.`);
+        
+        // Update progress to completed
+        progress.status = 'completed';
+        progress.endTime = Date.now();
+        progress.results = {
+            totalChecked: files.length,
+            missingCount: missingFiles.length,
+            reportFile: reportPath,
+            missingFiles: missingFiles
+        };
+        
+    } catch (error) {
+        console.error('❌ Database integrity check failed:', error);
+        progress.status = 'error';
+        progress.error = error.message;
+        progress.endTime = Date.now();
+    }
+}
+
+
 
 // Check for external archivers
 function checkArchivers() {
@@ -2392,10 +3086,7 @@ async function startServer() {
             console.log(`   Backups: ./backups/`);
             console.log(`\n🎯 Ready to use! Press Ctrl+C to stop the server`);
             
-            // Start file system monitoring after a short delay
-            setTimeout(() => {
-                startWatchingScannedDirectories();
-            }, 2000);
+
         });
         
         // Handle server errors

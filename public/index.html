@@ -692,6 +692,25 @@
             background-color: #e8f5e8;
         }
 
+        .tree-node.missing-file {
+            background-color: #fff3cd;
+            border-left: 3px solid #ffc107;
+            opacity: 0.7;
+        }
+
+        .tree-node.missing-file:hover {
+            background-color: #ffeaa7;
+        }
+
+        .tree-node.missing-file .tree-name {
+            color: #856404;
+            text-decoration: line-through;
+        }
+
+        .tree-node.missing-file .tree-icon {
+            opacity: 0.5;
+        }
+
         .tree-checkbox {
             margin-right: 8px;
             cursor: pointer;
@@ -969,27 +988,34 @@
                 </ul>
             </div>
             
-            <div class="form-group">
-                <h3>Синхронизация с файловой системой</h3>
-                <label>
-                    <input type="checkbox" id="monitoring-enabled" onchange="toggleFileSystemMonitoring()" checked>
-                    Автоматически удалять из базы данных записи о удаленных файлах
-                </label>
-                <p style="margin-top: 10px; color: #7f8c8d; font-size: 14px;">
-                    При включении этой опции система будет отслеживать изменения в файловой системе и автоматически удалять из базы данных записи о файлах, которые были удалены или перемещены вне приложения.
-                </p>
-            </div>
+
             
             <div class="form-group">
                 <h3>Управление базой данных</h3>
                 <button class="btn btn-success" onclick="backupDatabase()">💾 Создать резервную копию</button>
+                <button class="btn btn-info" onclick="showRestoreModal()">📥 Восстановить из копии</button>
                 <button class="btn btn-warning" onclick="cleanupDatabase()">🧹 Очистить несуществующие файлы</button>
+                <button class="btn btn-primary" onclick="checkDatabaseIntegrity()">🔍 Проверить целостность</button>
+                <button class="btn btn-info" onclick="compactDatabase()">🗜️ Сжать базу данных</button>
                 <button class="btn btn-danger" onclick="clearDatabase()">🗑️ Очистить базу данных</button>
                 <p style="margin-top: 10px; color: #7f8c8d; font-size: 14px;">
-                    <strong>Очистка несуществующих файлов</strong> удалит из базы записи о файлах, которые больше не существуют на диске.<br>
                     <strong>Резервная копия</strong> сохраняется в JSON формате.<br>
+                    <strong>Восстановить из копии</strong> загрузит данные из резервной копии (режимы: замена или слияние).<br>
+                    <strong>Очистка несуществующих файлов</strong> удалит из базы записи о файлах, которые больше не существуют на диске.<br>
+                    <strong>Проверить целостность</strong> создаст отчет о недостающих файлах без удаления записей из базы данных.<br>
+                    <strong>Сжатие базы данных</strong> уменьшит размер файла базы данных, удалив неиспользуемое пространство.<br>
                     <strong>Полная очистка</strong> удалит все записи из базы данных, но не затронет реальные файлы.
                 </p>
+            </div>
+            
+            <!-- Database Integrity Check Progress -->
+            <div id="integrity-check-progress" style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6;">
+                <h4>Проверка целостности базы данных</h4>
+                <div class="progress-bar" style="background: #e9ecef; border-radius: 4px; height: 20px; margin: 10px 0;">
+                    <div id="integrity-progress-fill" style="background: #007bff; height: 100%; border-radius: 4px; width: 0%; transition: width 0.3s ease;"></div>
+                </div>
+                <div id="integrity-progress-status" style="font-size: 14px; color: #6c757d;">Инициализация...</div>
+                <button id="integrity-stop-btn" class="btn btn-danger" onclick="stopDatabaseIntegrityCheck()" style="display: none; margin-top: 10px;">⏹️ Остановить проверку</button>
             </div>
             
             <div id="settings-status"></div>
@@ -1157,6 +1183,115 @@
         <div class="context-menu-item" onclick="contextMoveFile()">📦 Переместить в</div>
         <div class="context-menu-item" onclick="contextDeleteFile()">🗑️ Удалить</div>
         <div class="context-menu-item" onclick="contextArchiveFile()">🗜️ Создать архив</div>
+        <div class="context-menu-item" onclick="contextIntegrityCheck()">🔍 Проверка целостности</div>
+    </div>
+
+    <!-- Integrity Check Modal -->
+    <div id="integrity-check-modal" class="modal">
+        <div class="modal-content" style="max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3>Проверка целостности файлов</h3>
+                <span class="close" onclick="closeIntegrityCheckModal()">&times;</span>
+            </div>
+            <div id="integrity-check-body">
+                <div id="integrity-check-path" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                    <strong>Проверяемый путь:</strong> <span id="check-path-display"></span>
+                </div>
+                
+                <div class="form-group">
+                    <h4>Выберите типы проверок:</h4>
+                    <label style="display: block; margin: 10px 0;">
+                        <input type="checkbox" id="check-existence" checked>
+                        <strong>Проверка существования файлов</strong>
+                        <br><small style="color: #666;">Проверить, что все файлы из базы данных существуют на диске</small>
+                    </label>
+                    <label style="display: block; margin: 10px 0;">
+                        <input type="checkbox" id="check-crc32" checked>
+                        <strong>Проверка CRC32 хэшей</strong>
+                        <br><small style="color: #666;">Проверить, что содержимое файлов не изменилось (может занять много времени)</small>
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <h4>Настройки производительности:</h4>
+                    <label for="integrity-thread-count">Количество потоков:</label>
+                    <select id="integrity-thread-count" style="margin-left: 10px; padding: 5px;">
+                        <option value="1">1 поток</option>
+                        <option value="2">2 потока</option>
+                        <option value="4" selected>4 потока</option>
+                        <option value="8">8 потоков</option>
+                        <option value="16">16 потоков</option>
+                    </select>
+                    <br><small style="color: #666;">Больше потоков = быстрее проверка, но больше нагрузка на систему</small>
+                </div>
+                
+                <!-- Progress section -->
+                <div id="integrity-progress-section" style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
+                    <h4>Прогресс проверки:</h4>
+                    <div class="progress-bar" style="width: 100%; height: 25px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin: 10px 0;">
+                        <div id="integrity-progress-fill" style="height: 100%; background: linear-gradient(90deg, #28a745, #20c997); width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">0%</div>
+                    </div>
+                    <div id="integrity-progress-status" style="font-size: 14px; color: #666; margin-bottom: 10px;">Инициализация...</div>
+                    <button class="btn btn-warning" onclick="stopIntegrityCheck()" id="integrity-stop-btn" style="display: none;">⏹️ Остановить проверку</button>
+                </div>
+                
+                <div id="integrity-results" style="display: none; margin-top: 20px;">
+                    <h4 style="font-size: 18px; margin-bottom: 15px;">Результаты проверки:</h4>
+                    <div id="integrity-summary" style="margin-bottom: 20px; font-size: 16px;"></div>
+                    <div id="integrity-details" style="max-height: 500px; overflow-y: auto; font-size: 14px; line-height: 1.6;"></div>
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeIntegrityCheckModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="startIntegrityCheck()" id="integrity-start-btn">🔍 Начать проверку</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Database Restore Modal -->
+    <div id="restore-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Восстановление базы данных</h3>
+                <span class="close" onclick="closeRestoreModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="backup-file-path">Путь к файлу резервной копии:</label>
+                    <input type="text" id="backup-file-path" placeholder="Например: ./backup_2025-10-25T12-00-00-000Z.json" style="width: 100%;">
+                    <p style="margin-top: 5px; color: #7f8c8d; font-size: 12px;">
+                        Укажите полный путь к JSON файлу резервной копии
+                    </p>
+                </div>
+                
+                <div class="form-group">
+                    <label>Режим восстановления:</label>
+                    <div style="margin-top: 8px;">
+                        <label style="display: block; margin-bottom: 8px;">
+                            <input type="radio" name="restore-mode" value="replace" checked style="margin-right: 8px;">
+                            <strong>Заменить</strong> - удалить все текущие данные и загрузить из копии
+                        </label>
+                        <label style="display: block;">
+                            <input type="radio" name="restore-mode" value="merge" style="margin-right: 8px;">
+                            <strong>Объединить</strong> - добавить данные из копии к существующим (дубликаты игнорируются)
+                        </label>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 6px; border: 1px solid #ffeaa7;">
+                    <strong>⚠️ Внимание:</strong>
+                    <ul style="margin: 8px 0; padding-left: 20px; font-size: 14px;">
+                        <li>Режим "Заменить" полностью очистит текущую базу данных</li>
+                        <li>Рекомендуется создать резервную копию перед восстановлением</li>
+                        <li>Операция необратима - будьте осторожны</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeRestoreModal()">Отмена</button>
+                <button class="btn btn-warning" onclick="startRestore()" id="restore-start-btn">📥 Восстановить</button>
+            </div>
+        </div>
     </div>
 
     <!-- Copy/Move Destination Modal -->

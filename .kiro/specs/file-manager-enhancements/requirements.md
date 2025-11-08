@@ -52,6 +52,30 @@ This specification defines enhancements to the file manager interface to improve
 
 ### Requirement 4
 
+**User Story:** As a user, I want the integrity check function to only report missing files without deleting database records, so that I don't lose data when folder names change.
+
+#### Acceptance Criteria
+
+1. WHEN the integrity check detects missing files or folders, THE File_Manager SHALL NOT delete records from the database
+2. THE File_Manager SHALL create a "missed_files.txt" report file listing all missing items
+3. THE File_Manager SHALL display a notification to the user about missing files count
+4. THE File_Manager SHALL preserve all database records even when corresponding files are renamed or moved
+5. THE File_Manager SHALL include full path information in the missing files report
+
+### Requirement 5
+
+**User Story:** As a user, I want a larger interface with bigger fonts, so that the application is easier to read and use.
+
+#### Acceptance Criteria
+
+1. THE File_Manager SHALL increase the overall container width beyond current 1200px maximum
+2. THE File_Manager SHALL increase base font sizes throughout the interface
+3. THE File_Manager SHALL maintain responsive design for different screen sizes
+4. THE File_Manager SHALL ensure all UI elements scale proportionally with increased sizes
+5. THE File_Manager SHALL preserve visual hierarchy and readability with larger fonts
+
+### Requirement 4
+
 **User Story:** As a user, I want to view the history of all scanning operations, so that I can track when and what was scanned over time.
 
 #### Acceptance Criteria

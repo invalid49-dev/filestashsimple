@@ -110,24 +110,85 @@
     - Ensure proper cleanup of UI elements when scan is stopped
     - _Requirements: 3.3, 3.4, 3.5_
 
-- [ ]* 5. Add comprehensive testing for new features
-  - [ ]* 5.1 Write unit tests for database status checking
+- [x] 5. Implement non-destructive integrity check system
+
+
+
+
+
+
+
+-
+
+
+  - [x] 5.1 Create enhanced integrity check API endpoint
+
+
+
+    - Implement `/api/database/integrity-check` POST endpoint
+    - Check all database records without deleting any entries
+    - Generate comprehensive missing files report
+    - _Requirements: 4.1, 4.2, 4.4_
+
+  - [x] 5.2 Create missing files report generation
+
+
+    - Generate `missed_files.txt` file with missing items list
+    - Include full path information and file type indicators
+    - Format report for easy readability with [DIR] and [FILE] prefixes
+    - _Requirements: 4.2, 4.5_
+
+  - [x] 5.3 Add integrity check UI controls
+
+
+    - Create "Check Integrity" button in settings tab
+    - Display missing files count and report location to user
+    - Show progress during integrity check operation
+    - _Requirements: 4.3, 4.4_
+
+- [ ] 6. Implement interface scaling improvements
+  - [ ] 6.1 Increase container and layout dimensions
+    - Expand container max-width from 1200px to 1600px
+    - Increase padding and margins throughout interface
+    - Ensure responsive design still works on smaller screens
+    - _Requirements: 5.1, 5.3_
+
+  - [ ] 6.2 Scale up font sizes across interface
+    - Increase base body font size from 14px to 16px
+    - Scale up header fonts, button text, and table text proportionally
+    - Increase tab and button padding for better touch targets
+    - _Requirements: 5.2, 5.4_
+
+  - [ ] 6.3 Update responsive design for larger interface
+    - Adjust mobile breakpoints for new larger base sizes
+    - Ensure all elements remain usable on different screen sizes
+    - Test visual hierarchy and readability with increased fonts
+    - _Requirements: 5.3, 5.4, 5.5_
+
+- [ ]* 7. Add comprehensive testing for new features
+  - [ ]* 7.1 Write unit tests for database status checking
     - Test batch path lookup with various path list sizes
     - Test error handling for database connection failures
     - Test performance with large path collections
     - _Requirements: 1.1, 1.2_
 
-  - [ ]* 5.2 Write integration tests for scan cancellation
+  - [ ]* 7.2 Write integration tests for scan cancellation
     - Test complete scan start-to-stop workflow
     - Test cancellation at different stages of scanning process
     - Test data integrity after cancellation
     - _Requirements: 3.2, 3.5_
 
-  - [ ]* 5.3 Write UI tests for visual indicators
-    - Test visual indicator application and removal
-    - Test UI responsiveness during database status updates
-    - Test accessibility compliance of new visual elements
-    - _Requirements: 1.1, 1.3, 1.4_
+  - [ ]* 7.3 Write tests for integrity check system
+    - Test non-destructive integrity checking behavior
+    - Test missing files report generation accuracy
+    - Test UI notification and report file creation
+    - _Requirements: 4.1, 4.2, 4.3_
+
+  - [ ]* 7.4 Write UI tests for interface scaling
+    - Test responsive behavior with larger interface elements
+    - Test readability and accessibility with increased font sizes
+    - Test visual hierarchy preservation across screen sizes
+    - _Requirements: 5.2, 5.3, 5.4_
 
 - [x] 6. Implement scan history system
 
