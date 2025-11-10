@@ -22,13 +22,284 @@ app.use(express.static('public'));
 // Initialize SQLite database
 const db = new sqlite3.Database('./filestash.db');
 
+// Simple LRU Cache implementation for query results
+class LRUCache {
+    constructor(maxSize = 100 * 1024 * 1024) { // 100MB default
+        this.cache = new Map();
+        this.maxSize = maxSize;
+        this.currentSize = 0;
+    }
+    
+    get(key) {
+        if (!this.cache.has(key)) {
+            return null;
+        }
+        
+        const item = this.cache.get(key);
+        
+        // Check if expired (5 minutes TTL)
+        if (Date.now() - item.timestamp > 5 * 60 * 1000) {
+            this.delete(key);
+            return null;
+        }
+        
+        // Move to end (most recently used)
+        this.cache.delete(key);
+        this.cache.set(key, item);
+        
+        console.log(`✅ Cache HIT: ${key}`);
+        return item.data;
+    }
+    
+    set(key, data) {
+        // Estimate size (rough approximation)
+        const dataSize = JSON.stringify(data).length;
+        
+        // Remove old entry if exists
+        if (this.cache.has(key)) {
+            const oldItem = this.cache.get(key);
+            this.currentSize -= oldItem.size;
+            this.cache.delete(key);
+        }
+        
+        // Evict oldest entries if needed
+        while (this.currentSize + dataSize > this.maxSize && this.cache.size > 0) {
+            const oldestKey = this.cache.keys().next().value;
+            const oldestItem = this.cache.get(oldestKey);
+            this.currentSize -= oldestItem.size;
+            this.cache.delete(oldestKey);
+            console.log(`🗑️ Cache EVICT: ${oldestKey}`);
+        }
+        
+        // Add new entry
+        this.cache.set(key, {
+            data: data,
+            timestamp: Date.now(),
+            size: dataSize
+        });
+        this.currentSize += dataSize;
+        
+        console.log(`💾 Cache SET: ${key} (${Math.round(dataSize / 1024)}KB, total: ${Math.round(this.currentSize / 1024 / 1024)}MB)`);
+    }
+    
+    delete(key) {
+        if (this.cache.has(key)) {
+            const item = this.cache.get(key);
+            this.currentSize -= item.size;
+            this.cache.delete(key);
+            console.log(`🗑️ Cache DELETE: ${key}`);
+        }
+    }
+    
+    clear() {
+        this.cache.clear();
+        this.currentSize = 0;
+        console.log('🗑️ Cache CLEARED');
+    }
+    
+    invalidatePattern(pattern) {
+        const regex = new RegExp(pattern);
+        const keysToDelete = [];
+        
+        for (const key of this.cache.keys()) {
+            if (regex.test(key)) {
+                keysToDelete.push(key);
+            }
+        }
+        
+        keysToDelete.forEach(key => this.delete(key));
+        console.log(`🗑️ Cache INVALIDATED: ${keysToDelete.length} entries matching "${pattern}"`);
+    }
+}
 
+// Initialize query cache
+const queryCache = new LRUCache(100 * 1024 * 1024); // 100MB cache
 
+// In-memory database cache
+class DatabaseCache {
+    constructor() {
+        this.allFiles = null; // Массив всех файлов
+        this.filesByPath = null; // Map для быстрого поиска по пути
+        this.filesByDirectory = null; // Map для быстрого поиска по директории
+        this.isLoaded = false;
+        this.isLoading = false;
+        this.loadPromise = null;
+    }
+    
+    async loadFromDatabase() {
+        if (this.isLoaded) {
+            console.log('✅ Database cache already loaded');
+            return;
+        }
+        
+        if (this.isLoading) {
+            console.log('⏳ Database cache is already loading, waiting...');
+            return this.loadPromise;
+        }
+        
+        this.isLoading = true;
+        console.log('📥 Loading entire database into memory...');
+        const startTime = Date.now();
+        
+        this.loadPromise = new Promise((resolve, reject) => {
+            db.all('SELECT * FROM files', [], (err, rows) => {
+                if (err) {
+                    console.error('❌ Failed to load database into memory:', err);
+                    this.isLoading = false;
+                    reject(err);
+                    return;
+                }
+                
+                this.allFiles = rows;
+                this.filesByPath = new Map();
+                this.filesByDirectory = new Map();
+                
+                // Индексируем данные для быстрого доступа
+                rows.forEach(row => {
+                    this.filesByPath.set(row.full_path, row);
+                    
+                    const dir = row.directory || '';
+                    if (!this.filesByDirectory.has(dir)) {
+                        this.filesByDirectory.set(dir, []);
+                    }
+                    this.filesByDirectory.get(dir).push(row);
+                });
+                
+                this.isLoaded = true;
+                this.isLoading = false;
+                
+                const duration = Date.now() - startTime;
+                const memoryUsage = JSON.stringify(rows).length;
+                console.log(`✅ Database loaded into memory: ${rows.length} records in ${duration}ms (~${Math.round(memoryUsage / 1024 / 1024)}MB)`);
+                
+                resolve();
+            });
+        });
+        
+        return this.loadPromise;
+    }
+    
+    invalidate() {
+        console.log('🗑️ Invalidating database cache...');
+        this.allFiles = null;
+        this.filesByPath = null;
+        this.filesByDirectory = null;
+        this.isLoaded = false;
+        this.isLoading = false;
+        this.loadPromise = null;
+        
+        // Также очищаем query cache
+        queryCache.clear();
+    }
+    
+    async reload() {
+        this.invalidate();
+        await this.loadFromDatabase();
+    }
+    
+    getAll() {
+        if (!this.isLoaded) {
+            throw new Error('Database cache not loaded');
+        }
+        return this.allFiles;
+    }
+    
+    getByPath(path) {
+        if (!this.isLoaded) {
+            throw new Error('Database cache not loaded');
+        }
+        return this.filesByPath.get(path);
+    }
+    
+    getByDirectory(directory) {
+        if (!this.isLoaded) {
+            throw new Error('Database cache not loaded');
+        }
+        return this.filesByDirectory.get(directory || '') || [];
+    }
+    
+    search(searchTerm) {
+        if (!this.isLoaded) {
+            throw new Error('Database cache not loaded');
+        }
+        
+        const lowerSearch = searchTerm.toLowerCase().trim();
+        
+        // Split search into words for better matching
+        const searchWords = lowerSearch.split(/\s+/).filter(w => w.length > 0);
+        
+        // Filter and score results
+        const results = this.allFiles
+            .map(file => {
+                const lowerFilename = file.filename.toLowerCase();
+                const lowerPath = file.full_path.toLowerCase();
+                let score = 0;
+                let matches = 0;
+                
+                // Check if ALL search words are present
+                const allWordsMatch = searchWords.every(word => 
+                    lowerFilename.includes(word) || lowerPath.includes(word)
+                );
+                
+                if (!allWordsMatch) return null;
+                
+                // Score: exact filename match = highest
+                if (lowerFilename === lowerSearch) {
+                    score += 1000;
+                }
+                
+                // Score: filename starts with search
+                if (lowerFilename.startsWith(lowerSearch)) {
+                    score += 500;
+                }
+                
+                // Score: filename contains exact phrase
+                if (lowerFilename.includes(lowerSearch)) {
+                    score += 100;
+                }
+                
+                // Score: path contains exact phrase
+                if (lowerPath.includes(lowerSearch)) {
+                    score += 50;
+                }
+                
+                // Score: each word match in filename
+                searchWords.forEach(word => {
+                    if (lowerFilename.includes(word)) {
+                        score += 10;
+                        matches++;
+                    }
+                });
+                
+                // Score: prefer directories
+                if (file.is_directory === 1) {
+                    score += 5;
+                }
+                
+                // Score: shorter paths are better
+                const pathDepth = (file.full_path.match(/[\\\/]/g) || []).length;
+                score -= pathDepth;
+                
+                return { file, score, matches };
+            })
+            .filter(result => result !== null)
+            .sort((a, b) => b.score - a.score)
+            .map(result => result.file);
+        
+        return results;
+    }
+}
 
+// Initialize database cache
+const dbCache = new DatabaseCache();
 
-
-
-
+// Helper function to invalidate caches after database modifications
+async function invalidateDatabaseCaches() {
+    queryCache.invalidatePattern('^tree:');
+    console.log('🔄 Reloading database cache after modification...');
+    await dbCache.reload();
+    console.log('✅ Database cache reloaded');
+}
 
 // Create tables with optimizations
 db.serialize(() => {
@@ -59,6 +330,20 @@ db.serialize(() => {
     db.run('CREATE INDEX IF NOT EXISTS idx_size ON files(size)');
     db.run('CREATE INDEX IF NOT EXISTS idx_is_directory ON files(is_directory)');
     db.run('CREATE INDEX IF NOT EXISTS idx_crc32 ON files(crc32)');
+    
+    // Composite indexes for lazy loading optimization
+    db.run('CREATE INDEX IF NOT EXISTS idx_directory_filename ON files(directory, is_directory DESC, filename ASC)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_full_path_prefix ON files(full_path)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_parent_count ON files(directory, is_directory)');
+    
+    console.log('✅ Database indexes created/verified');
+    
+    // Load database into memory cache after initialization
+    dbCache.loadFromDatabase().then(() => {
+        console.log('✅ Database cache initialized and ready');
+    }).catch(err => {
+        console.error('❌ Failed to initialize database cache:', err);
+    });
 });
 
 // Scan history management functions
@@ -172,8 +457,54 @@ function getFileAttributes(stats) {
 // Helper function to calculate CRC32 (simplified)
 function calculateCRC32(filePath) {
     try {
-        const data = fs.readFileSync(filePath);
-        return crypto.createHash('md5').update(data).digest('hex').substring(0, 8);
+        const stats = fs.statSync(filePath);
+        const fileSize = stats.size;
+        
+        // For small files (< 10MB), read entire file
+        if (fileSize < 10 * 1024 * 1024) {
+            const data = fs.readFileSync(filePath);
+            return crypto.createHash('md5').update(data).digest('hex').substring(0, 8);
+        }
+        
+        // For large files (10MB+), use partial hashing
+        const chunkSize = 1 * 1024 * 1024; // 1MB
+        const hash = crypto.createHash('md5');
+        
+        // Add file size to hash
+        hash.update(Buffer.from(fileSize.toString()));
+        
+        const fd = fs.openSync(filePath, 'r');
+        
+        try {
+            // Read first 1MB
+            const startBuffer = Buffer.alloc(Math.min(chunkSize, fileSize));
+            fs.readSync(fd, startBuffer, 0, startBuffer.length, 0);
+            hash.update(startBuffer);
+            
+            // Read middle 1MB
+            if (fileSize > chunkSize * 2) {
+                const middlePos = Math.floor(fileSize / 2) - Math.floor(chunkSize / 2);
+                const middleBuffer = Buffer.alloc(chunkSize);
+                fs.readSync(fd, middleBuffer, 0, middleBuffer.length, middlePos);
+                hash.update(middleBuffer);
+            }
+            
+            // Read last 1MB
+            if (fileSize > chunkSize) {
+                const endPos = Math.max(0, fileSize - chunkSize);
+                const endBuffer = Buffer.alloc(Math.min(chunkSize, fileSize - endPos));
+                fs.readSync(fd, endBuffer, 0, endBuffer.length, endPos);
+                hash.update(endBuffer);
+            }
+            
+            fs.closeSync(fd);
+            return hash.digest('hex').substring(0, 8);
+            
+        } catch (error) {
+            fs.closeSync(fd);
+            throw error;
+        }
+        
     } catch (error) {
         return null;
     }
@@ -298,6 +629,66 @@ function getAvailableDrives() {
         drives.push('/'); // Unix-like systems
     }
     return drives;
+}
+
+// Helper function to collect all paths for rescan (including nested items)
+async function collectRescanPaths(selectedPaths) {
+    return new Promise((resolve, reject) => {
+        const allPaths = new Set();
+        let completed = 0;
+        
+        if (selectedPaths.length === 0) {
+            return resolve([]);
+        }
+        
+        selectedPaths.forEach(selectedPath => {
+            // Query database for all records matching this path (exact match or nested)
+            const query = `
+                SELECT full_path 
+                FROM files 
+                WHERE full_path = ? OR full_path LIKE ?
+            `;
+            
+            const likePath = selectedPath + path.sep + '%';
+            
+            db.all(query, [selectedPath, likePath], (err, rows) => {
+                if (err) {
+                    console.error(`❌ Error collecting paths for ${selectedPath}:`, err);
+                } else {
+                    rows.forEach(row => allPaths.add(row.full_path));
+                }
+                
+                completed++;
+                if (completed === selectedPaths.length) {
+                    resolve(Array.from(allPaths));
+                }
+            });
+        });
+    });
+}
+
+// Helper function to delete old records from database
+async function deleteOldRecords(paths) {
+    return new Promise((resolve, reject) => {
+        if (paths.length === 0) {
+            return resolve(0);
+        }
+        
+        // Build parameterized query for batch deletion
+        const placeholders = paths.map(() => '?').join(',');
+        const query = `DELETE FROM files WHERE full_path IN (${placeholders})`;
+        
+        db.run(query, paths, async function(err) {
+            if (err) {
+                console.error('❌ Error deleting old records:', err);
+                reject(err);
+            } else {
+                console.log(`✅ Deleted ${this.changes} records from database`);
+                await invalidateDatabaseCaches();
+                resolve(this.changes);
+            }
+        });
+    });
 }
 
 // API Routes
@@ -441,6 +832,63 @@ app.post('/api/scan/stop/:scanId', (req, res) => {
         scanId: scanId,
         status: 'cancellation_requested'
     });
+});
+
+// Rescan selected files/folders from database
+app.post('/api/database/rescan', async (req, res) => {
+    const { paths, threads, calculateCrc32 } = req.body;
+    const batchSize = parseInt(threads) || 4;
+    const shouldCalculateCrc32 = calculateCrc32 !== false;
+    
+    if (!paths || !Array.isArray(paths) || paths.length === 0) {
+        return res.status(400).json({ error: 'Paths array is required' });
+    }
+
+    try {
+        console.log(`🔄 Starting rescan for ${paths.length} path(s)...`);
+        
+        // Step 1: Collect all paths to rescan (including nested items)
+        const pathsToRescan = await collectRescanPaths(paths);
+        console.log(`📋 Found ${pathsToRescan.length} total records to rescan`);
+        
+        // Step 2: Delete old database records
+        const deletedCount = await deleteOldRecords(pathsToRescan);
+        console.log(`🗑️ Deleted ${deletedCount} old records from database`);
+        
+        // Step 3: Initiate new scan for these paths
+        const scanId = Date.now().toString();
+        const startTime = Date.now();
+        
+        scanProgress.set(scanId, {
+            total: 0,
+            processed: 0,
+            errors: [],
+            status: 'scanning',
+            paths: paths,
+            startTime: startTime,
+            endTime: null,
+            duration: 0,
+            calculateCrc32: shouldCalculateCrc32,
+            cancelled: false,
+            cancellationRequested: false,
+            isRescan: true
+        });
+
+        // Start scanning asynchronously
+        scanMultipleDirectoriesAsync(paths, scanId, batchSize, shouldCalculateCrc32);
+
+        res.json({
+            success: true,
+            scanId: scanId,
+            pathsProcessed: pathsToRescan.length,
+            deletedRecords: deletedCount,
+            message: `Rescan started for ${paths.length} path(s). Deleted ${deletedCount} old records.`
+        });
+        
+    } catch (error) {
+        console.error('❌ Rescan error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Optimized async scanning function with true parallelism
@@ -627,7 +1075,11 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
         progress.endTime = Date.now();
         progress.duration = progress.endTime - progress.startTime;
         
-        console.log(`✅ Scan completed in ${Math.round(progress.duration / 1000)} seconds`);
+        if (progress.isRescan) {
+            console.log(`✅ Rescan completed in ${Math.round(progress.duration / 1000)} seconds - ${allFileStats.length} records updated`);
+        } else {
+            console.log(`✅ Scan completed in ${Math.round(progress.duration / 1000)} seconds`);
+        }
         
     } catch (error) {
         progress.status = 'error';
@@ -650,7 +1102,8 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
                 totalFound: progress.total || 0,
                 calculateCrc32: calculateCrc32,
                 errors: progress.errors || [],
-                cancelled: progress.cancelled || false
+                cancelled: progress.cancelled || false,
+                isRescan: progress.isRescan || false
             };
             
             addScanToHistory(scanRecord);
@@ -666,6 +1119,14 @@ async function getAllItemsRecursivelyOptimized(rootPath, scanId) {
     const directories = [rootPath];
     const fs_promises = require('fs').promises;
     const progress = scanProgress.get(scanId);
+
+    // Check if root path exists (important for rescan operations)
+    try {
+        await fs_promises.access(rootPath);
+    } catch (error) {
+        console.log(`⚠️ Path does not exist, skipping: ${rootPath}`);
+        return items; // Return empty array if path doesn't exist
+    }
 
     while (directories.length > 0) {
         // Check for cancellation during enumeration
@@ -740,35 +1201,82 @@ async function getFileStatsOptimized(filePath, calculateCrc32 = true) {
     }
 }
 
-// Optimized CRC32 calculation using streaming for all file sizes
+// Optimized CRC32 calculation using partial hashing for large files
 async function calculateCRC32Optimized(filePath, fileSize) {
     const fs_promises = require('fs').promises;
     
     try {
-        // For small files (< 10MB), read directly into memory
+        // For small files (< 10MB), read entire file
         if (fileSize < 10 * 1024 * 1024) {
             const data = await fs_promises.readFile(filePath);
             return crypto.createHash('md5').update(data).digest('hex').substring(0, 8);
         }
         
-        // For larger files, use streaming to avoid memory issues
-        return new Promise((resolve, reject) => {
-            const hash = crypto.createHash('md5');
-            const stream = fs.createReadStream(filePath, { highWaterMark: 64 * 1024 }); // 64KB chunks
-            
-            stream.on('data', (chunk) => {
-                hash.update(chunk);
+        // For medium files (10MB - 100MB), use streaming
+        if (fileSize < 100 * 1024 * 1024) {
+            return new Promise((resolve, reject) => {
+                const hash = crypto.createHash('md5');
+                const stream = fs.createReadStream(filePath, { highWaterMark: 256 * 1024 }); // 256KB chunks
+                
+                stream.on('data', (chunk) => {
+                    hash.update(chunk);
+                });
+                
+                stream.on('end', () => {
+                    resolve(hash.digest('hex').substring(0, 8));
+                });
+                
+                stream.on('error', (error) => {
+                    console.error(`Error reading file for CRC32: ${filePath}`, error.message);
+                    resolve(null);
+                });
             });
+        }
+        
+        // For large files (100MB+), use PARTIAL HASHING for speed
+        // Read: first 1MB + middle 1MB + last 1MB + file size
+        // This is much faster and still provides good uniqueness
+        const chunkSize = 1 * 1024 * 1024; // 1MB chunks
+        const hash = crypto.createHash('md5');
+        
+        // Add file size to hash (important for uniqueness)
+        hash.update(Buffer.from(fileSize.toString()));
+        
+        const fileHandle = await fs_promises.open(filePath, 'r');
+        
+        try {
+            // Read first 1MB
+            const startBuffer = Buffer.alloc(Math.min(chunkSize, fileSize));
+            await fileHandle.read(startBuffer, 0, startBuffer.length, 0);
+            hash.update(startBuffer);
             
-            stream.on('end', () => {
-                resolve(hash.digest('hex').substring(0, 8));
-            });
+            // Read middle 1MB (if file is large enough)
+            if (fileSize > chunkSize * 2) {
+                const middlePos = Math.floor(fileSize / 2) - Math.floor(chunkSize / 2);
+                const middleBuffer = Buffer.alloc(chunkSize);
+                await fileHandle.read(middleBuffer, 0, middleBuffer.length, middlePos);
+                hash.update(middleBuffer);
+            }
             
-            stream.on('error', (error) => {
-                console.error(`Error reading file for CRC32: ${filePath}`, error.message);
-                resolve(null);
-            });
-        });
+            // Read last 1MB (if file is large enough)
+            if (fileSize > chunkSize) {
+                const endPos = Math.max(0, fileSize - chunkSize);
+                const endBuffer = Buffer.alloc(Math.min(chunkSize, fileSize - endPos));
+                await fileHandle.read(endBuffer, 0, endBuffer.length, endPos);
+                hash.update(endBuffer);
+            }
+            
+            await fileHandle.close();
+            
+            const result = hash.digest('hex').substring(0, 8);
+            console.log(`⚡ Fast hash for large file (${Math.round(fileSize / 1024 / 1024)}MB): ${path.basename(filePath)}`);
+            return result;
+            
+        } catch (error) {
+            await fileHandle.close();
+            throw error;
+        }
+        
     } catch (error) {
         console.error(`Error calculating CRC32 for ${filePath}:`, error.message);
         return null;
@@ -801,10 +1309,14 @@ async function batchInsertToDatabase(fileStatsArray) {
                     completed++;
                     if (completed === total) {
                         stmt.finalize();
-                        db.run('COMMIT', (err) => {
+                        db.run('COMMIT', async (err) => {
                             if (err) {
                                 reject(err);
                             } else {
+                                // Invalidate and reload database cache after successful insert
+                                queryCache.invalidatePattern('^tree:');
+                                console.log('🔄 Reloading database cache after batch insert...');
+                                await dbCache.reload();
                                 resolve();
                             }
                         });
@@ -890,57 +1402,469 @@ app.get('/api/files', (req, res) => {
 });
 
 // Get files in hierarchical tree structure
-app.get('/api/files/tree', (req, res) => {
-    const { search, rootPath } = req.query;
+// Lazy loading tree - returns only one level at a time
+app.get('/api/files/tree', async (req, res) => {
+    const { search, parent } = req.query;
     
-    let query = `
-        SELECT id, full_path, directory, filename, extension, size, 
-               created_time, modified_time, is_directory, crc32
-        FROM files
-    `;
-    let params = [];
-    
-    // Add search filter if provided
-    if (search) {
-        query += ' WHERE (filename LIKE ? OR full_path LIKE ? OR extension LIKE ? OR crc32 LIKE ?)';
-        const searchPattern = `%${search}%`;
-        params = [searchPattern, searchPattern, searchPattern, searchPattern];
-    }
-    
-    // Add root path filter if provided
-    if (rootPath) {
-        const rootFilter = search ? ' AND ' : ' WHERE ';
-        query += rootFilter + 'full_path LIKE ?';
-        params.push(`${rootPath}%`);
-    }
-    
-    query += ' ORDER BY directory ASC, is_directory DESC, filename ASC';
-    
-    db.all(query, params, async (err, rows) => {
-        if (err) {
-            console.error('Tree query error:', err);
-            return res.status(500).json({ error: err.message });
+    try {
+        // Ensure database cache is loaded
+        if (!dbCache.isLoaded) {
+            console.log('⏳ Database cache not loaded yet, loading now...');
+            await dbCache.loadFromDatabase();
         }
         
-        try {
-            // Build tree from all database records (including missing files)
-            // Note: We no longer automatically remove missing files from database
-            // This preserves data integrity and allows users to see what files are missing
-            const tree = buildFileTree(rows);
+        const allFiles = dbCache.getAll();
+        const pathSep = path.sep;
+        let nodes;
+        
+        if (search) {
+            // Search mode - find top-level matching folders/files
+            const searchResults = dbCache.search(search);
+            const lowerSearch = search.toLowerCase();
+            const searchWords = lowerSearch.split(/\s+/);
             
-            // Prevent caching
-            res.set({
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
+            // Find the shallowest (closest to root) matching paths
+            const pathsByDepth = new Map();
+            
+            searchResults.forEach(file => {
+                const lowerPath = file.full_path.toLowerCase();
+                const lowerFilename = file.filename.toLowerCase();
+                
+                // Find the first path component that matches ALL search words
+                const pathParts = file.full_path.split(path.sep);
+                let matchingPath = null;
+                let matchingDepth = Infinity;
+                
+                for (let i = 0; i < pathParts.length; i++) {
+                    const partialPath = pathParts.slice(0, i + 1).join(path.sep);
+                    const partialLower = partialPath.toLowerCase();
+                    
+                    // Check if this path segment matches all search words
+                    const allWordsMatch = searchWords.every(word => partialLower.includes(word));
+                    
+                    if (allWordsMatch && i < matchingDepth) {
+                        matchingPath = partialPath;
+                        matchingDepth = i;
+                        break; // Found the shallowest match
+                    }
+                }
+                
+                if (matchingPath && !pathsByDepth.has(matchingPath)) {
+                    // Find the actual entry for this path
+                    const entry = allFiles.find(f => f.full_path === matchingPath);
+                    if (entry) {
+                        pathsByDepth.set(matchingPath, { file: entry, depth: matchingDepth });
+                    }
+                }
             });
             
-            res.json(tree);
-        } catch (buildError) {
-            console.error('Tree building error:', buildError);
-            res.status(500).json({ error: 'Failed to build file tree' });
+            // Score and sort results
+            const scoredResults = Array.from(pathsByDepth.values()).map(({ file, depth }) => {
+                const lowerFilename = file.filename.toLowerCase();
+                const lowerPath = file.full_path.toLowerCase();
+                let score = 0;
+                
+                // Exact match in filename
+                if (lowerFilename === lowerSearch) score += 1000;
+                // Filename contains exact phrase
+                if (lowerFilename.includes(lowerSearch)) score += 500;
+                // Path contains exact phrase  
+                if (lowerPath.includes(lowerSearch)) score += 100;
+                // Prefer directories
+                if (file.is_directory === 1) score += 50;
+                // Strongly prefer shallower paths
+                score -= depth * 10;
+                
+                return { file, score };
+            });
+            
+            scoredResults.sort((a, b) => b.score - a.score);
+            
+            // Limit to 1000 results
+            const limitedResults = scoredResults.slice(0, 1000).map(r => r.file);
+            
+            nodes = limitedResults.map(file => {
+                let existsOnDisk = false;
+                try {
+                    existsOnDisk = fs.existsSync(file.full_path);
+                } catch (e) {
+                    existsOnDisk = false;
+                }
+                
+                const hasChildren = file.is_directory === 1 && 
+                    (dbCache.getByDirectory(file.full_path).length > 0 ||
+                     allFiles.some(f => f.full_path.startsWith(file.full_path + path.sep)));
+                
+                return {
+                    id: file.id,
+                    path: file.full_path,
+                    name: file.filename,
+                    isDirectory: file.is_directory === 1,
+                    hasChildren: hasChildren, // Allow expanding in search results
+                    size: file.size,
+                    existsOnDisk: existsOnDisk,
+                    createdTime: file.created_time,
+                    modifiedTime: file.modified_time,
+                    crc32: file.crc32,
+                    inDatabase: true
+                };
+            });
+            
+            console.log(`🔍 Search found ${searchResults.length} raw results, filtered to ${pathsByDepth.size} top-level paths, returning ${nodes.length}`);
+        } else if (!parent || parent === 'root') {
+            // Root level - get top-level directories (drives and root folders)
+            
+            // Collect unique root paths (first level only)
+            const rootPaths = new Map();
+            
+            allFiles.forEach(file => {
+                const fullPath = file.full_path || '';
+                if (!fullPath) return;
+                
+                // Extract root part (drive or first folder)
+                let rootPart;
+                if (process.platform === 'win32') {
+                    // Windows: C:\, D:\, etc.
+                    const match = fullPath.match(/^([A-Z]:)/i);
+                    if (match) {
+                        rootPart = match[1];
+                    }
+                } else {
+                    // Unix: /home, /var, etc.
+                    const parts = fullPath.split(pathSep).filter(p => p);
+                    if (parts.length > 0) {
+                        rootPart = pathSep + parts[0];
+                    }
+                }
+                
+                if (rootPart && !rootPaths.has(rootPart)) {
+                    // Find the actual directory entry for this root
+                    const rootDir = allFiles.find(f => 
+                        f.full_path === rootPart && f.is_directory === 1
+                    );
+                    
+                    if (rootDir) {
+                        rootPaths.set(rootPart, rootDir);
+                    } else {
+                        // Create virtual root entry
+                        rootPaths.set(rootPart, {
+                            id: `virtual_${rootPart}`,
+                            full_path: rootPart,
+                            filename: rootPart,
+                            is_directory: 1,
+                            size: 0,
+                            created_time: null,
+                            modified_time: null,
+                            crc32: null
+                        });
+                    }
+                }
+            });
+            
+            nodes = Array.from(rootPaths.values()).map(file => {
+                const byDir = dbCache.getByDirectory(file.full_path).length;
+                const byPrefix = allFiles.filter(f => f.full_path.startsWith(file.full_path + pathSep)).length;
+                const hasChildren = byDir > 0 || byPrefix > 0;
+                
+                console.log(`🔍 Root "${file.full_path}": byDir=${byDir}, byPrefix=${byPrefix}, hasChildren=${hasChildren}`);
+                
+                let existsOnDisk = false;
+                try {
+                    existsOnDisk = fs.existsSync(file.full_path);
+                } catch (e) {
+                    existsOnDisk = false;
+                }
+                
+                return {
+                    id: file.id,
+                    path: file.full_path,
+                    name: file.filename,
+                    isDirectory: true,
+                    hasChildren: hasChildren,
+                    size: file.size || 0,
+                    existsOnDisk: existsOnDisk,
+                    createdTime: file.created_time,
+                    modifiedTime: file.modified_time,
+                    crc32: file.crc32,
+                    inDatabase: typeof file.id === 'number'
+                };
+            });
+        } else {
+            // Load children of specific directory
+            
+            // Normalize parent path (remove double backslashes)
+            const normalizedParent = parent.replace(/\\\\/g, '\\');
+            
+            console.log(`🔍 Loading children for parent: "${parent}"`);
+            console.log(`   Normalized parent: "${normalizedParent}"`);
+            console.log(`   Path separator: "${pathSep}"`);
+            console.log(`   Total files in cache: ${allFiles.length}`);
+            
+            // Debug: Check what files exist for this parent
+            const filesWithParentInPath = allFiles.filter(f => 
+                f.full_path && f.full_path.toLowerCase().startsWith(normalizedParent.toLowerCase())
+            );
+            console.log(`   Files starting with "${normalizedParent}": ${filesWithParentInPath.length}`);
+            
+            // Always show first 5 samples
+            console.log(`   Sample files (first 5):`);
+            filesWithParentInPath.slice(0, 5).forEach(f => {
+                console.log(`     - full_path: "${f.full_path}"`);
+                console.log(`       directory: "${f.directory}"`);
+                console.log(`       filename: "${f.filename}"`);
+            });
+            
+            // Find direct children only (not nested)
+            let children = [];
+            
+            // Method 1: Files where directory === normalizedParent
+            const directChildren = allFiles.filter(file => 
+                file.full_path && file.full_path !== normalizedParent && file.directory === normalizedParent
+            );
+            
+            console.log(`   Method 1 (directory === normalizedParent): ${directChildren.length} files`);
+            
+            // Method 2: If no direct children found, extract unique first-level items
+            if (directChildren.length === 0 && filesWithParentInPath.length > 0) {
+                console.log(`   Using Method 2 (extract first-level from paths)`);
+                
+                const uniqueFirstLevel = new Map();
+                
+                filesWithParentInPath.forEach(file => {
+                    if (file.full_path === normalizedParent) return;
+                    
+                    // Extract first level after parent
+                    // Example: "P:\Photo\Subfolder\file.txt" -> "Subfolder"
+                    const afterParent = file.full_path.substring(normalizedParent.length);
+                    // Remove leading separator if present
+                    const cleanPath = afterParent.startsWith(pathSep) ? afterParent.substring(1) : afterParent;
+                    const firstPart = cleanPath.split(pathSep)[0];
+                    
+                    if (firstPart && !uniqueFirstLevel.has(firstPart)) {
+                        // Build the full path for this first-level item
+                        const firstLevelPath = normalizedParent + (normalizedParent.endsWith(pathSep) ? '' : pathSep) + firstPart;
+                        const actualEntry = allFiles.find(f => f.full_path === firstLevelPath);
+                        
+                        if (actualEntry) {
+                            uniqueFirstLevel.set(firstPart, actualEntry);
+                            console.log(`     Found actual entry: ${firstLevelPath}`);
+                        } else {
+                            // Create virtual entry
+                            uniqueFirstLevel.set(firstPart, {
+                                id: `virtual_${firstLevelPath}`,
+                                full_path: firstLevelPath,
+                                filename: firstPart,
+                                directory: normalizedParent,
+                                is_directory: 1,
+                                size: 0,
+                                created_time: null,
+                                modified_time: null,
+                                crc32: null
+                            });
+                            console.log(`     Created virtual entry: ${firstLevelPath}`);
+                        }
+                    }
+                });
+                
+                children = Array.from(uniqueFirstLevel.values());
+                console.log(`   Method 2 found ${children.length} unique first-level items`);
+            } else {
+                children = directChildren;
+            }
+            
+            console.log(`   Total direct children: ${children.length}`);
+            
+            nodes = children.map(file => {
+                const hasChildren = file.is_directory === 1 && 
+                    (dbCache.getByDirectory(file.full_path).length > 0 ||
+                     allFiles.some(f => f.full_path.startsWith(file.full_path + pathSep) && f.full_path !== file.full_path));
+                
+                let existsOnDisk = false;
+                try {
+                    existsOnDisk = fs.existsSync(file.full_path);
+                } catch (e) {
+                    existsOnDisk = false;
+                }
+                
+                return {
+                    id: file.id,
+                    path: file.full_path,
+                    name: file.filename,
+                    isDirectory: file.is_directory === 1,
+                    hasChildren: hasChildren,
+                    size: file.size,
+                    existsOnDisk: existsOnDisk,
+                    createdTime: file.created_time,
+                    modifiedTime: file.modified_time,
+                    crc32: file.crc32,
+                    inDatabase: true
+                };
+            });
         }
-    });
+        
+        // Sort: directories first, then by name
+        nodes.sort((a, b) => {
+            if (a.isDirectory !== b.isDirectory) {
+                return b.isDirectory ? 1 : -1;
+            }
+            return a.name.localeCompare(b.name);
+        });
+        
+        // Prevent caching on client side
+        res.set({
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        });
+        
+        console.log(`✅ Lazy tree loaded: ${nodes.length} nodes for parent="${parent || 'root'}"`);
+        res.json({ nodes, parent: parent || 'root' });
+        
+    } catch (error) {
+        console.error('❌ Tree query error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Lazy loading API endpoint for tree
+app.get('/api/tree/lazy', (req, res) => {
+    const { parent, cursor, limit = 1000 } = req.query;
+    
+    // Validate limit
+    const maxLimit = Math.min(parseInt(limit) || 1000, 1000);
+    const offset = parseInt(cursor) || 0;
+    
+    console.log(`🌳 Lazy load request: parent="${parent}", cursor=${offset}, limit=${maxLimit}`);
+    
+    // Check cache first
+    const cacheKey = `tree:${parent || 'root'}:${offset}:${maxLimit}`;
+    const cachedResult = queryCache.get(cacheKey);
+    
+    if (cachedResult) {
+        console.log(`✅ Returning cached result for ${cacheKey}`);
+        return res.json(cachedResult);
+    }
+    
+    try {
+        let query, countQuery, params;
+        
+        if (!parent || parent === 'root') {
+            // Load root level nodes (directories and files at root)
+            query = `
+                SELECT 
+                    full_path,
+                    filename,
+                    is_directory,
+                    size,
+                    created_time,
+                    modified_time,
+                    crc32,
+                    (SELECT COUNT(*) FROM files f2 WHERE f2.directory = files.full_path AND files.is_directory = 1) as child_count
+                FROM files
+                WHERE directory = '' OR directory IS NULL OR full_path NOT LIKE '%${path.sep}%${path.sep}%'
+                ORDER BY is_directory DESC, filename ASC
+                LIMIT ? OFFSET ?
+            `;
+            
+            countQuery = `
+                SELECT COUNT(*) as total
+                FROM files
+                WHERE directory = '' OR directory IS NULL OR full_path NOT LIKE '%${path.sep}%${path.sep}%'
+            `;
+            
+            params = [maxLimit, offset];
+        } else {
+            // Load children of specific directory
+            query = `
+                SELECT 
+                    full_path,
+                    filename,
+                    is_directory,
+                    size,
+                    created_time,
+                    modified_time,
+                    crc32,
+                    (SELECT COUNT(*) FROM files f2 WHERE f2.directory = files.full_path AND files.is_directory = 1) as child_count
+                FROM files
+                WHERE directory = ?
+                ORDER BY is_directory DESC, filename ASC
+                LIMIT ? OFFSET ?
+            `;
+            
+            countQuery = `
+                SELECT COUNT(*) as total
+                FROM files
+                WHERE directory = ?
+            `;
+            
+            params = [parent, maxLimit, offset];
+        }
+        
+        // Get total count first
+        const countParams = parent && parent !== 'root' ? [parent] : [];
+        db.get(countQuery, countParams, (countErr, countResult) => {
+            if (countErr) {
+                console.error('❌ Count query error:', countErr);
+                return res.status(500).json({ error: countErr.message });
+            }
+            
+            const totalCount = countResult.total;
+            
+            // Get paginated nodes
+            db.all(query, params, (err, rows) => {
+                if (err) {
+                    console.error('❌ Lazy load query error:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                // Check if files exist on disk and format response
+                const nodes = rows.map(row => {
+                    let existsOnDisk = false;
+                    try {
+                        existsOnDisk = fs.existsSync(row.full_path);
+                    } catch (error) {
+                        existsOnDisk = false;
+                    }
+                    
+                    return {
+                        path: row.full_path,
+                        name: row.filename,
+                        isDirectory: row.is_directory === 1,
+                        hasChildren: row.is_directory === 1 && row.child_count > 0,
+                        childCount: row.child_count || 0,
+                        size: row.size,
+                        existsOnDisk: existsOnDisk,
+                        createdTime: row.created_time,
+                        modifiedTime: row.modified_time,
+                        crc32: row.crc32
+                    };
+                });
+                
+                const hasMore = offset + rows.length < totalCount;
+                const nextCursor = hasMore ? offset + rows.length : null;
+                
+                console.log(`✅ Loaded ${rows.length} nodes (${offset}-${offset + rows.length} of ${totalCount})`);
+                
+                const result = {
+                    nodes: nodes,
+                    nextCursor: nextCursor,
+                    hasMore: hasMore,
+                    totalCount: totalCount,
+                    currentOffset: offset,
+                    limit: maxLimit
+                };
+                
+                // Cache the result
+                queryCache.set(cacheKey, result);
+                
+                res.json(result);
+            });
+        });
+        
+    } catch (error) {
+        console.error('❌ Lazy load error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Get file by ID
@@ -962,13 +1886,14 @@ app.get('/api/files/:id', (req, res) => {
 app.delete('/api/files/:id', (req, res) => {
     const { id } = req.params;
     
-    db.run('DELETE FROM files WHERE id = ?', [id], function(err) {
+    db.run('DELETE FROM files WHERE id = ?', [id], async function(err) {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
         if (this.changes === 0) {
             return res.status(404).json({ error: 'File not found' });
         }
+        await invalidateDatabaseCaches();
         res.json({ message: 'File record deleted' });
     });
 });
@@ -1095,6 +2020,11 @@ app.post('/api/clear', (req, res) => {
                 } else {
                     console.log('📝 Switched back to WAL journal mode');
                 }
+                
+                // Clear cache after database clear
+                queryCache.clear();
+                dbCache.invalidate();
+                console.log('🔄 Cache cleared after database clear');
                 
                 sendResponse(200, { 
                     message: `База данных полностью очищена. Удалено ${deletedCount.count} записей. Файл базы данных физически сжат.` 
@@ -1311,14 +2241,17 @@ app.post('/api/restore', (req, res) => {
                                     console.log(`✅ Database restore completed successfully`);
                                     console.log(`📊 Restored: ${restoredCount}, Skipped: ${skippedCount}, Errors: ${errorCount}`);
                                     
-                                    res.json({
-                                        message: 'Database restored successfully',
-                                        mode: restoreMode,
-                                        backupFile: backupFile,
-                                        totalRecords: records.length,
-                                        restoredCount: restoredCount,
-                                        skippedCount: skippedCount,
-                                        errorCount: errorCount
+                                    // Invalidate cache after restore
+                                    invalidateDatabaseCaches().then(() => {
+                                        res.json({
+                                            message: 'Database restored successfully',
+                                            mode: restoreMode,
+                                            backupFile: backupFile,
+                                            totalRecords: records.length,
+                                            restoredCount: restoredCount,
+                                            skippedCount: skippedCount,
+                                            errorCount: errorCount
+                                        });
                                     });
                                 });
                             }
@@ -1596,6 +2529,7 @@ app.post('/api/files/delete', async (req, res) => {
             }
         }
         
+        await invalidateDatabaseCaches();
         res.json({ message: 'Delete operation completed', results });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1682,6 +2616,7 @@ app.post('/api/files/delete-enhanced', async (req, res) => {
             }
         }
         
+        await invalidateDatabaseCaches();
         res.json({ message: 'Enhanced delete operation completed', results });
         
     } catch (error) {
@@ -1716,6 +2651,7 @@ app.post('/api/files/remove-from-database', async (req, res) => {
             });
         });
         
+        await invalidateDatabaseCaches();
         res.json({ 
             message: 'Files removed from database successfully',
             removedCount: fileIds.length
@@ -1824,6 +2760,10 @@ app.post('/api/files/cleanup-database', async (req, res) => {
             });
         }
         
+        if (filesToRemove.length > 0) {
+            await invalidateDatabaseCaches();
+        }
+        
         res.json({ 
             message: `Database cleanup completed${filesToRemove.length > 0 ? ' and compacted' : ''}`,
             totalFiles: allFiles.length,
@@ -1856,37 +2796,46 @@ app.post('/api/files/integrity-check', async (req, res) => {
         console.log(`Path characters: ${JSON.stringify(checkPath.split(''))}`);
         console.log(`Check CRC32: ${checkCRC32}, Check Existence: ${checkExistence}`);
         
-        // Get all files from database for the specified path
+        // Get files from database for the specified path
         let sqlQuery, sqlParams;
         
-        if (checkPath === '.') {
-            // For current directory, get all files (both relative and absolute paths)
-            sqlQuery = `SELECT id, full_path, filename, crc32, size, is_directory FROM files 
-                       WHERE full_path NOT LIKE '%node_modules%' 
-                       ORDER BY full_path`;
-            sqlParams = [];
-        } else {
-            // For other paths, try to find the best match in database
-            console.log(`Looking for paths containing: ${checkPath}`);
+        // Normalize path: convert forward slashes to backslashes, remove double backslashes
+        let normalizedPath = checkPath.replace(/\//g, '\\').replace(/\\\\/g, '\\');
+        
+        console.log(`Looking for path: ${normalizedPath}`);
+        
+        // First, check if this exact path exists in database
+        const exactMatch = await new Promise((resolve, reject) => {
+            db.get('SELECT id, full_path, filename, crc32, size, is_directory FROM files WHERE full_path = ?', 
+                [normalizedPath], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
+        });
+        
+        if (exactMatch) {
+            console.log(`✅ Found exact match: ${exactMatch.full_path}`);
             
-            // First, try exact match
-            let normalizedPath = checkPath.replace(/\//g, '\\');
-            
-            // If no slashes, try to find similar paths in database
-            if (!normalizedPath.includes('\\') && !normalizedPath.includes('/')) {
-                console.log(`Path has no separators, searching for similar paths...`);
-                
-                // Try to find paths that contain parts of this path
-                const pathParts = normalizedPath.split(/(?=[A-Z])|(?<=:)/);
-                console.log(`Path parts: ${JSON.stringify(pathParts)}`);
-                
-                // For now, let's try a broader search
-                sqlQuery = 'SELECT id, full_path, filename, crc32, size, is_directory FROM files WHERE full_path LIKE ? OR full_path LIKE ? ORDER BY full_path';
-                sqlParams = [`%${pathParts[0]}%`, `%${pathParts[pathParts.length-1]}%`];
+            if (exactMatch.is_directory) {
+                // It's a directory - get all files inside it
+                console.log(`📁 Checking directory and its contents`);
+                sqlQuery = `SELECT id, full_path, filename, crc32, size, is_directory FROM files 
+                           WHERE full_path = ? OR full_path LIKE ? 
+                           ORDER BY full_path`;
+                sqlParams = [normalizedPath, `${normalizedPath}\\%`];
             } else {
-                sqlQuery = 'SELECT id, full_path, filename, crc32, size, is_directory FROM files WHERE full_path LIKE ? ORDER BY full_path';
-                sqlParams = [`${normalizedPath}%`];
+                // It's a file - check only this file
+                console.log(`📄 Checking single file`);
+                sqlQuery = 'SELECT id, full_path, filename, crc32, size, is_directory FROM files WHERE full_path = ?';
+                sqlParams = [normalizedPath];
             }
+        } else {
+            // No exact match - try to find files in this directory
+            console.log(`⚠️ No exact match, searching for files in directory`);
+            sqlQuery = `SELECT id, full_path, filename, crc32, size, is_directory FROM files 
+                       WHERE full_path LIKE ? 
+                       ORDER BY full_path`;
+            sqlParams = [`${normalizedPath}\\%`];
         }
         
         console.log(`🔍 Executing SQL query for path: ${checkPath}`);

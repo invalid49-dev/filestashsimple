@@ -283,3 +283,83 @@
     - Include breadcrumb navigation for current location
     - Add "expand all" and "collapse all" functionality for tree sections
     - _Requirements: 5.1, 5.4, 5.5_
+
+- [x] 8. Implement database rescan system
+
+
+  - [x] 8.1 Create rescan API endpoint and helper functions
+
+
+
+    - Implement `/api/database/rescan` POST endpoint
+    - Create `collectRescanPaths()` function to gather all paths including nested items
+    - Create `deleteOldRecords()` function for batch deletion of old database records
+    - Add error handling for database operations and file system access
+    - _Requirements: 6.2, 6.3, 6.4, 6.6, 6.7_
+
+  - [x] 8.2 Integrate rescan with existing scan system
+
+
+
+    - Modify `scanMultipleDirectoriesAsync()` to support rescan mode
+    - Add logic to skip files that no longer exist on disk during rescan
+    - Ensure proper handling of renamed folders and updated paths
+    - Maintain existing progress tracking and error handling
+    - _Requirements: 6.2, 6.3, 6.4, 6.6, 6.7_
+
+  - [x] 8.3 Implement database table row selection
+
+
+
+    - Add click handlers to database table rows for selection
+    - Implement single-select mode (normal click)
+    - Implement multi-select mode (Ctrl/Cmd + click)
+    - Create `getSelectedDatabaseItems()` function to retrieve selected items
+    - Add CSS styling for selected rows
+    - _Requirements: 6.9, 6.10_
+
+  - [x] 8.4 Create context menu for database tab
+
+
+
+    - Implement `showDatabaseContextMenu()` function
+    - Add "Rescan" option to context menu
+    - Position context menu at cursor location
+    - Handle menu dismissal on outside click
+    - Add CSS styling for context menu
+    - _Requirements: 6.1, 6.2_
+
+  - [x] 8.5 Implement rescan execution logic
+
+
+
+    - Create `rescanSelected()` function to handle rescan action
+    - Add confirmation dialog before starting rescan
+    - Extract full paths from selected items
+    - Call rescan API endpoint with selected paths
+    - Integrate with existing scan progress monitoring
+    - _Requirements: 6.2, 6.8, 6.9, 6.10_
+
+  - [x] 8.6 Add UI feedback and state management
+
+
+    - Display progress indicator during rescan operation
+    - Show appropriate messages for success and error states
+    - Clear selection after successful rescan completion
+    - Refresh database view automatically after rescan
+    - Disable rescan option when no items are selected
+    - _Requirements: 6.8, 6.9_
+
+  - [x] 8.7 Write tests for rescan functionality
+
+
+
+
+
+
+    - Test rescan with single file selection
+    - Test rescan with multiple file/folder selection
+    - Test rescan with renamed folders and nested path updates
+    - Test rescan with deleted files (should remove from database)
+    - Test error handling for permission errors and invalid paths
+    - _Requirements: 6.2, 6.3, 6.4, 6.6, 6.7_

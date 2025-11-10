@@ -1,15 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="light">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Modern file manager with accessibility features">
-    <title>FileStash Simple - Modern File Manager</title>
-    
-    <!-- Modern Styles -->
-    <link rel="stylesheet" href="modern-styles.css">
-    
-    <!-- Legacy Styles (will be gradually replaced) -->
+    <title>FileStash Simple - File Manager</title>
     <style>
         * {
             margin: 0;
@@ -628,7 +622,6 @@
 
         .tree-node.selected {
             background-color: #e3f2fd;
-            border-left: 3px solid #2196f3;
         }
 
         .tree-node.directory {
@@ -840,72 +833,19 @@
     </style>
 </head>
 <body>
-    <!-- Skip to Content Link for Accessibility -->
-    <a href="#main-content" class="skip-link">Перейти к содержимому</a>
-    
-    <div class="app-container">
-        <!-- Modern Header with Accessibility Toolbar -->
-        <header class="app-header" role="banner">
-            <div class="header-top">
-                <h1 class="app-title">📁 FileStash Simple</h1>
-                
-                <!-- Accessibility Toolbar -->
-                <div class="accessibility-toolbar" role="toolbar" aria-label="Настройки доступности">
-                    <span class="toolbar-label">Доступность:</span>
-                    
-                    <button class="icon-btn" onclick="decreaseFontSize()" 
-                            aria-label="Уменьшить размер шрифта" title="Уменьшить шрифт (Ctrl + -)">
-                        A-
-                    </button>
-                    
-                    <span id="font-size-display" aria-live="polite" style="min-width: 50px; text-align: center; font-weight: 600;">
-                        100%
-                    </span>
-                    
-                    <button class="icon-btn" onclick="increaseFontSize()" 
-                            aria-label="Увеличить размер шрифта" title="Увеличить шрифт (Ctrl + +)">
-                        A+
-                    </button>
-                    
-                    <button class="icon-btn" onclick="toggleHighContrast()" 
-                            aria-label="Переключить высокую контрастность" title="Высокая контрастность (Ctrl + H)">
-                        ◐ Контраст
-                    </button>
-                    
-                    <button class="icon-btn" onclick="toggleTheme()" 
-                            aria-label="Переключить тему" title="Светлая/Темная тема">
-                        🌙 Тема
-                    </button>
-                </div>
-            </div>
-            
-            <p style="color: var(--text-secondary); margin-top: var(--spacing-sm);">
-                Современный файловый менеджер с поддержкой доступности
-            </p>
-        </header>
+    <div class="container">
+        <div class="header">
+            <h1>📁 FileStash Simple</h1>
+            <p>Простой и быстрый файловый менеджер</p>
+        </div>
 
-        <!-- Navigation Tabs -->
-        <nav class="tabs-container" role="tablist" aria-label="Основная навигация">
-            <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="scan-tab" 
-                    onclick="showTab('scan')" id="tab-scan">
-                🔍 Сканирование
-            </button>
-            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="search-tab" 
-                    onclick="showTab('search')" id="tab-search">
-                🗄️ База данных
-            </button>
-            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="history-tab" 
-                    onclick="showTab('history')" id="tab-history">
-                📊 История
-            </button>
-            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="settings-tab" 
-                    onclick="showTab('settings')" id="tab-settings">
-                ⚙️ Настройки
-            </button>
-        </nav>
-
-        <!-- Main Content -->
-        <main id="main-content" role="main">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('scan')">🔍 Сканирование</button>
+            <button class="tab" onclick="showTab('search')">🗄️ База данных</button>
+            <button class="tab" onclick="showTab('history')">📊 История сканирования</button>
+            <button class="tab" onclick="showTab('settings')">⚙️ Настройки</button>
+        </div>
 
         <!-- Scan Tab -->
         <div id="scan-tab" class="tab-content active">
@@ -1139,10 +1079,6 @@
             <button class="btn btn-secondary" onclick="nextPage()" id="next-btn" disabled>Вперед →</button>
         </div>
     </div>
-        </main>
-        <!-- End Main Content -->
-    </div>
-    <!-- End App Container -->
 
     <!-- Modal for file operations -->
     <div id="file-operation-modal" class="modal">
@@ -1248,7 +1184,6 @@
         <div class="context-menu-item" onclick="contextDeleteFile()">🗑️ Удалить</div>
         <div class="context-menu-item" onclick="contextArchiveFile()">🗜️ Создать архив</div>
         <div class="context-menu-item" onclick="contextIntegrityCheck()">🔍 Проверка целостности</div>
-        <div class="context-menu-item" id="context-rescan-item" onclick="contextRescan()">🔄 Пересканировать</div>
     </div>
 
     <!-- Integrity Check Modal -->
@@ -1408,13 +1343,6 @@
 
 
     
-    <!-- Accessibility Manager (load first) -->
-    <script src="accessibility-manager.js"></script>
-    
-    <!-- Main Application -->
     <script src="app.js"></script>
-    
-    <!-- Screen Reader Announcements -->
-    <div id="sr-announcements" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

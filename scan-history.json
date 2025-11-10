@@ -1,49 +1,115 @@
 {
   "scans": [
     {
-      "id": "1762616486150",
-      "startTime": "2025-11-08T15:41:26.150Z",
-      "endTime": "2025-11-08T15:41:29.317Z",
-      "duration": 3167,
+      "id": "1762788820748",
+      "startTime": "2025-11-10T15:33:40.748Z",
+      "endTime": "2025-11-10T15:35:21.476Z",
+      "duration": 100728,
       "status": "completed",
       "paths": [
-        "K:\\Англия - Мрачный рай - 2022"
+        "P:\\Photo\\Из Сети"
       ],
       "threadCount": 8,
-      "filesProcessed": 12,
-      "totalFound": 12,
+      "filesProcessed": 7045,
+      "totalFound": 7045,
       "calculateCrc32": true,
       "errors": [],
-      "cancelled": false
+      "cancelled": false,
+      "isRescan": true
     },
     {
-      "id": "1761395005726",
-      "startTime": "2025-10-25T12:23:25.726Z",
-      "endTime": "2025-10-25T12:34:00.308Z",
-      "duration": 634582,
+      "id": "1762788080316",
+      "startTime": "2025-11-10T15:21:20.316Z",
+      "endTime": "2025-11-10T15:21:26.872Z",
+      "duration": 6556,
       "status": "completed",
       "paths": [
-        "P:\\Photo\\Из Сети",
+        "P:\\\\Photo\\\\Машенька\\\\1639134129_7-goloe-me-p-erotika-porno-poddelki-anna-khilkevich-7.jpg",
+        "P:\\\\Photo\\\\A\\\\Ann-model.com\\\\09\\\\Set_09_IMG_10_b0e446ea-c95d-0dde-32c8-49ba1a128ba6.jpg",
+        "P:\\\\Photo\\\\A\\\\Ann-model.com\\\\06\\\\Set_06_IMG_34_5aa31f66-7561-d0ed-f6e0-7ddde8d72e0c.jpg",
+        "P:\\\\Photo\\\\A\\\\Alana Kern\\\\Pink & Sweet Power Tee\\\\181edc_1f5988767bae4dde9a739a15c81efcad~mv2.jpg"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 4,
+      "totalFound": 4,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": true
+    },
+    {
+      "id": "1762786805472",
+      "startTime": "2025-11-10T15:00:05.472Z",
+      "endTime": "2025-11-10T15:00:12.712Z",
+      "duration": 7240,
+      "status": "completed",
+      "paths": [
+        "P:\\\\Photo\\\\Из Сети\\\\_яНОЧКА_"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 148,
+      "totalFound": 148,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": true
+    },
+    {
+      "id": "1762777606957",
+      "startTime": "2025-11-10T12:26:46.957Z",
+      "endTime": "2025-11-10T14:00:48.415Z",
+      "duration": 5641458,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\A"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 389427,
+      "totalFound": 389427,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762777551167",
+      "startTime": "2025-11-10T12:25:51.167Z",
+      "endTime": "2025-11-10T12:26:16.517Z",
+      "duration": 25350,
+      "status": "completed",
+      "paths": [
         "P:\\Photo\\Кристина Асмус",
         "P:\\Photo\\Машенька",
         "P:\\Photo\\Настенька",
-        "P:\\Photo\\____LS MODEL INDEX",
         "P:\\Photo\\Разное",
-        "P:\\Photo\\Fakes",
-        "P:\\Photo\\Nice Ass",
-        "P:\\Photo\\Panties",
-        "P:\\Photo\\Smile Of a Child",
-        "P:\\Photo\\Vladmodels index 2014",
-        "P:\\Photo\\Wet Pussy"
+        "P:\\Photo\\AI Creations"
       ],
-      "threadCount": 32,
-      "filesProcessed": 67243,
-      "totalFound": 67243,
+      "threadCount": 16,
+      "filesProcessed": 1759,
+      "totalFound": 1759,
       "calculateCrc32": true,
       "errors": [],
-      "cancelled": false
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762777384045",
+      "startTime": "2025-11-10T12:23:04.045Z",
+      "endTime": "2025-11-10T12:24:37.605Z",
+      "duration": 93560,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Из Сети"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 7045,
+      "totalFound": 7045,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
     }
   ],
   "version": "1.0",
-  "created": "2025-10-25T12:18:12.532Z"
+  "created": "2025-11-10T11:44:30.338Z"
 }

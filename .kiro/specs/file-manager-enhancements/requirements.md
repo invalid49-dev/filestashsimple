@@ -99,3 +99,20 @@ This specification defines enhancements to the file manager interface to improve
 3. WHEN displaying a file path like "P:\Photo\A\Alena model\", THE File_Manager SHALL show "Photo" as root, "A" as expandable child, and "Alena model" as expandable grandchild
 4. THE File_Manager SHALL provide expand/collapse functionality for each directory level
 5. THE File_Manager SHALL maintain the current search and filtering capabilities within the tree structure
+
+### Requirement 6
+
+**User Story:** As a user, I want to rescan selected files and folders that are already in the database, so that I can update their information after making changes to them on disk.
+
+#### Acceptance Criteria
+
+1. THE File_Manager SHALL provide a "Rescan" option in the context menu on the Database tab
+2. WHEN the user selects one or more files or folders and chooses "Rescan", THE File_Manager SHALL initiate a Scanning_Operation for the selected items
+3. WHEN rescanning a folder, THE File_Manager SHALL recursively process all nested subfolders and files
+4. WHEN a Scanning_Operation completes for rescanned items, THE File_Manager SHALL delete the old database records for those items
+5. THE File_Manager SHALL insert new database records with updated information for all rescanned items
+6. WHEN a file or folder no longer exists on disk during rescan, THE File_Manager SHALL delete its database record
+7. WHEN a folder is renamed and rescanned, THE File_Manager SHALL update the paths of all nested files and folders automatically
+8. THE File_Manager SHALL display a progress indicator during the rescan operation
+9. THE File_Manager SHALL allow selection of multiple non-contiguous files and folders for simultaneous rescan
+10. THE File_Manager SHALL process all selected items in a single Scanning_Operation when multiple items are selected for rescan

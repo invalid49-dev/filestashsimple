@@ -6,12 +6,37 @@ yarn-error.log*
 
 # Database
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
+scan-history.json
 
 # Backup files
 backup_*.json
 *.bak
+backups/
+
+# Test files
+test-*.js
+test-*.txt
+test-folder/
+simple-test.js
+
+# Temporary files
+*-renamed-file.txt
+missed_files.txt
+test.txt
+
+# Development reports (keep in git but ignore locally)
+# ACCESS_RIGHTS_FIX.md
+# COPY_MOVE_FIX_REPORT.md
+# ENHANCED_FEATURES_REPORT.md
+# FILE_BROWSER_FEATURE_REPORT.md
+# PROJECT_SUCCESS_REPORT.md
+
+# Scan logs
+scan-logs/
 
 # Archives
 archives/*.rar

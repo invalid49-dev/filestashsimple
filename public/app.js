@@ -41,13 +41,36 @@ function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
     });
-    document.querySelectorAll('.tab').forEach(tab => {
+    
+    // Update tab buttons (both old and new styles)
+    document.querySelectorAll('.tab, .tab-btn').forEach(tab => {
         tab.classList.remove('active');
+        tab.setAttribute('aria-selected', 'false');
     });
     
     // Show selected tab
-    document.getElementById(tabName + '-tab').classList.add('active');
-    event.target.classList.add('active');
+    const tabContent = document.getElementById(tabName + '-tab');
+    if (tabContent) {
+        tabContent.classList.add('active');
+    }
+    
+    // Update active tab button
+    const tabButton = document.getElementById('tab-' + tabName) || event.target;
+    if (tabButton) {
+        tabButton.classList.add('active');
+        tabButton.setAttribute('aria-selected', 'true');
+    }
+    
+    // Announce to screen reader
+    if (window.accessibilityManager) {
+        const tabNames = {
+            'scan': 'Сканирование',
+            'search': 'База данных',
+            'history': 'История сканирования',
+            'settings': 'Настройки'
+        };
+        accessibilityManager.announceToScreenReader(`Открыта вкладка: ${tabNames[tabName] || tabName}`);
+    }
     
     // Load data for specific tabs
     if (tabName === 'history') {
@@ -514,6 +537,86 @@ async function stopScanning() {
         const stopBtn = document.getElementById('stop-scan-btn');
         stopBtn.disabled = false;
         stopBtn.textContent = '⏹️ Остановить сканирование';
+    }
+}
+
+// Rescan selected files/folders from database
+async function rescanSelected() {
+    const selectedItems = getSelectedDatabaseItems();
+    
+    if (selectedItems.length === 0) {
+        showMessage('Выберите файлы или папки для пересканирования', 'warning');
+        return;
+    }
+    
+    // Confirm action
+    const itemCount = selectedItems.length;
+    const itemsList = selectedItems.map(item => {
+        const name = item.full_path.split(/[\\\/]/).pop();
+        return `${item.is_directory ? '📁' : '📄'} ${name}`;
+    }).slice(0, 10).join('\n');
+    
+    const moreText = itemCount > 10 ? `\n... и еще ${itemCount - 10} элементов` : '';
+    
+    const confirmed = confirm(
+        `Пересканировать ${itemCount} элемент(ов)?\n\n${itemsList}${moreText}\n\nСтарые записи будут удалены и заменены новыми данными.`
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+        // Extract full paths from selected items
+        const paths = selectedItems.map(item => item.full_path);
+        
+        // Get scan settings
+        const threads = parseInt(document.getElementById('thread-count').value) || 4;
+        const calculateCrc32 = document.getElementById('calculate-crc32').checked;
+        
+        showMessage('🔄 Начинается пересканирование...', 'info');
+        
+        // Call rescan API
+        const response = await apiCall('/database/rescan', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                paths: paths,
+                threads: threads,
+                calculateCrc32: calculateCrc32
+            })
+        });
+        
+        if (response.success) {
+            showMessage(
+                `✅ Пересканирование начато\nУдалено старых записей: ${response.deletedRecords}`,
+                'success'
+            );
+            
+            // Monitor scan progress
+            const scanResult = await monitorScanProgress(response.scanId);
+            
+            // Show completion message
+            if (scanResult && scanResult.status === 'completed') {
+                showMessage(
+                    `✅ Пересканирование завершено!\nОбработано файлов: ${scanResult.processed}\nВремя: ${formatScanTime(Math.round(scanResult.duration / 1000))}`,
+                    'success'
+                );
+            } else if (scanResult && scanResult.status === 'cancelled') {
+                showMessage(
+                    `⚠️ Пересканирование остановлено\nОбработано файлов: ${scanResult.processed}`,
+                    'warning'
+                );
+            }
+            
+            // Clear selection and refresh view after completion
+            clearSelection();
+            refreshCurrentView(true);
+            loadStats();
+        } else {
+            showMessage('❌ Ошибка при пересканировании', 'error');
+        }
+        
+    } catch (error) {
+        showMessage('❌ Ошибка при пересканировании: ' + error.message, 'error');
+        console.error('Rescan error:', error);
     }
 }
 
@@ -1296,7 +1399,7 @@ function displayFiles(files) {
     updateSelectedFilesCount();
 }
 
-// Load file tree
+// Load file tree with lazy loading
 async function loadFileTree(searchQuery = '', forceRefresh = false) {
     try {
         const container = document.getElementById('files-tree-container');
@@ -1305,21 +1408,40 @@ async function loadFileTree(searchQuery = '', forceRefresh = false) {
         }
         
         const params = new URLSearchParams();
-        if (searchQuery) {
+        
+        // Only add parent parameter if not searching
+        if (!searchQuery) {
+            params.append('parent', 'root'); // Load only root level
+        } else {
             params.append('search', searchQuery);
         }
+        
         if (forceRefresh) {
-            params.append('refresh', Date.now()); // Add timestamp to prevent caching
+            params.append('refresh', Date.now());
         }
         
-        const tree = await apiCall(`/files/tree?${params}`);
-        renderFileTree(tree, searchQuery);
+        const response = await apiCall(`/files/tree?${params}`);
+        renderLazyFileTree(response.nodes, searchQuery);
     } catch (error) {
         console.error('Failed to load file tree:', error);
         const container = document.getElementById('files-tree-container');
         if (container) {
             container.innerHTML = '<div class="tree-empty">Ошибка загрузки файлового дерева</div>';
         }
+    }
+}
+
+// Load children of a specific node
+async function loadTreeChildren(parentPath, nodeElement) {
+    try {
+        const params = new URLSearchParams();
+        params.append('parent', parentPath);
+        
+        const response = await apiCall(`/files/tree?${params}`);
+        return response.nodes;
+    } catch (error) {
+        console.error('Failed to load tree children:', error);
+        return [];
     }
 }
 
@@ -1375,6 +1497,168 @@ function renderFileTree(treeData, searchQuery = '') {
     }, 100);
 }
 
+// Render lazy-loaded file tree
+function renderLazyFileTree(nodes, searchQuery = '') {
+    const container = document.getElementById('files-tree-container');
+    if (!container) return;
+    
+    console.log(`🎨 Rendering lazy tree: ${nodes ? nodes.length : 0} nodes`);
+    if (nodes && nodes.length > 0) {
+        const dirs = nodes.filter(n => n.isDirectory).length;
+        const files = nodes.filter(n => !n.isDirectory).length;
+        console.log(`   Directories: ${dirs}, Files: ${files}`);
+    }
+    
+    if (!nodes || nodes.length === 0) {
+        const emptyMessage = searchQuery ? 
+            `<div class="tree-empty">Файлы не найдены для запроса "${searchQuery}"</div>` :
+            `<div class="tree-empty">
+                <h3>Nothing to show here</h3>
+                <p>Start your first scan to see files and folders</p>
+                <button class="btn btn-primary" onclick="showTab('scan')" style="margin-top: 10px;">
+                    🔍 Go to Scan Tab
+                </button>
+            </div>`;
+        container.innerHTML = emptyMessage;
+        return;
+    }
+    
+    let html = '';
+    
+    // Add search info if searching
+    if (searchQuery) {
+        html += `<div class="tree-search-info">Найдено результатов: ${nodes.length} для "${searchQuery}"</div>`;
+    }
+    
+    // Render tree nodes
+    html += '<div class="tree-root">';
+    nodes.forEach(node => {
+        html += renderLazyTreeNode(node, 0);
+    });
+    html += '</div>';
+    
+    container.innerHTML = html;
+    
+    updateTreeSelectedCount();
+    
+    // Make nodes focusable and add interactions
+    setTimeout(() => {
+        makeTreeNodesFocusable();
+        restoreTreeSelection();
+    }, 100);
+}
+
+// Render individual lazy tree node
+function renderLazyTreeNode(node, level) {
+    const isDirectory = node.isDirectory;
+    const hasChildren = node.hasChildren;
+    const nodeId = `tree-node-${encodeURIComponent(node.path)}`;
+    const inDatabase = node.inDatabase !== false;
+    const existsOnDisk = node.existsOnDisk !== false;
+    
+    let nodeClasses = `tree-node ${isDirectory ? 'directory' : 'file'}`;
+    if (inDatabase) nodeClasses += ' in-database';
+    if (!existsOnDisk) nodeClasses += ' missing-file';
+    
+    const fileId = node.id || `path_${encodeURIComponent(node.path)}`;
+    const escapedPath = node.path.replace(/\\/g, '\\\\\\\\').replace(/'/g, "\\'");
+    
+    let html = `<div class="${nodeClasses}" data-level="${level}" data-path="${node.path}" data-file-id="${fileId}" data-is-directory="${isDirectory}" data-in-database="${inDatabase}" data-exists-on-disk="${existsOnDisk}" id="${nodeId}" oncontextmenu="showTreeContextMenu(event, '${fileId}', '${escapedPath}', ${isDirectory}, ${inDatabase})">`;
+    
+    // Checkbox
+    html += `<input type="checkbox" class="tree-checkbox" data-file-id="${fileId}" data-path="${node.path}" data-is-directory="${isDirectory}" data-in-database="${inDatabase}" data-exists-on-disk="${existsOnDisk}" onchange="toggleTreeFileSelection('${fileId}', this)">`;
+    
+    // Expand/collapse icon for directories with children
+    if (isDirectory && hasChildren) {
+        html += `<span class="tree-expand-icon" onclick="toggleLazyTreeNode('${nodeId}', '${escapedPath}')">▶</span>`;
+    } else {
+        html += `<span class="tree-expand-icon"></span>`;
+    }
+    
+    // File/folder icon
+    let icon;
+    if (isDirectory) {
+        icon = node.name.match(/^[A-Z]:$/) ? '💾' : '📁';
+    } else {
+        const ext = node.name.split('.').pop().toLowerCase();
+        icon = getFileIcon(ext);
+    }
+    html += `<span class="tree-icon">${icon}</span>`;
+    
+    // File/folder name
+    html += `<span class="tree-name">${node.name}</span>`;
+    
+    // File info
+    if (!isDirectory && node.size) {
+        html += `<span class="tree-size">${formatBytes(node.size)}</span>`;
+    }
+    
+    // Status indicators
+    if (!existsOnDisk) {
+        html += `<span class="tree-status missing" title="Файл не найден на диске">❌</span>`;
+    }
+    
+    html += '</div>';
+    
+    // Placeholder for children (will be loaded on expand)
+    if (isDirectory && hasChildren) {
+        html += `<div class="tree-children" id="${nodeId}-children" style="display: none;"></div>`;
+    }
+    
+    return html;
+}
+
+// Toggle lazy tree node (expand/collapse with lazy loading)
+async function toggleLazyTreeNode(nodeId, nodePath) {
+    const node = document.getElementById(nodeId);
+    if (!node) return;
+    
+    const childrenContainer = document.getElementById(`${nodeId}-children`);
+    if (!childrenContainer) return;
+    
+    const expandIcon = node.querySelector('.tree-expand-icon');
+    const isExpanded = childrenContainer.style.display !== 'none';
+    
+    if (isExpanded) {
+        // Collapse
+        childrenContainer.style.display = 'none';
+        if (expandIcon) expandIcon.textContent = '▶';
+    } else {
+        // Expand - load children if not loaded yet
+        if (expandIcon) expandIcon.textContent = '⏳';
+        
+        // Check if children already loaded
+        if (childrenContainer.children.length === 0) {
+            // Load children from server
+            const children = await loadTreeChildren(nodePath);
+            
+            console.log(`📂 Loaded ${children ? children.length : 0} children for "${nodePath}"`);
+            
+            if (children && children.length > 0) {
+                const level = parseInt(node.dataset.level) + 1;
+                let html = '';
+                children.forEach(child => {
+                    html += renderLazyTreeNode(child, level);
+                });
+                childrenContainer.innerHTML = html;
+                
+                console.log(`   Rendered ${children.length} children at level ${level}`);
+                
+                // Make new nodes focusable
+                setTimeout(() => {
+                    makeTreeNodesFocusable();
+                    restoreTreeSelection();
+                }, 50);
+            } else {
+                childrenContainer.innerHTML = '<div class="tree-empty-folder" style="padding-left: 40px; color: #888;">Пусто</div>';
+            }
+        }
+        
+        childrenContainer.style.display = 'block';
+        if (expandIcon) expandIcon.textContent = '▼';
+    }
+}
+
 // Render a level of the tree
 function renderTreeLevel(nodes, level) {
     let html = '';
@@ -1413,7 +1697,10 @@ function createTreeNode(node, level) {
     // Generate file ID first
     const fileId = node.fileData?.id || `path_${encodeURIComponent(node.path)}`;
     
-    let html = `<div class="${nodeClasses}" data-level="${level}" data-path="${node.path}" data-file-id="${fileId}" data-is-directory="${isDirectory}" data-in-database="${inDatabase}" data-exists-on-disk="${existsOnDisk}" id="${nodeId}" oncontextmenu="showTreeContextMenu(event, '${fileId}', '${node.path}', ${isDirectory}, ${inDatabase})">`;
+    // Escape path for use in JavaScript string (double escape backslashes)
+    const escapedPath = node.path.replace(/\\/g, '\\\\\\\\').replace(/'/g, "\\'");
+    
+    let html = `<div class="${nodeClasses}" data-level="${level}" data-path="${node.path}" data-file-id="${fileId}" data-is-directory="${isDirectory}" data-in-database="${inDatabase}" data-exists-on-disk="${existsOnDisk}" id="${nodeId}" oncontextmenu="showTreeContextMenu(event, '${fileId}', '${escapedPath}', ${isDirectory}, ${inDatabase})">`;
     
     // Checkbox for selection (for all items, including intermediate folders)
     html += `<input type="checkbox" class="tree-checkbox" data-file-id="${fileId}" data-path="${node.path}" data-is-directory="${isDirectory}" data-in-database="${inDatabase}" data-exists-on-disk="${existsOnDisk}" onchange="toggleTreeFileSelection('${fileId}', this)">`;
@@ -1459,6 +1746,11 @@ function createTreeNode(node, level) {
     // Size for files
     if (!isDirectory && node.fileData?.size !== undefined) {
         html += `<span class="tree-size">${formatBytes(node.fileData.size)}</span>`;
+    }
+    
+    // CRC32 for files
+    if (!isDirectory && node.fileData?.crc32) {
+        html += `<span class="tree-crc32" title="CRC32 Hash" style="font-family: monospace; font-size: 11px; color: var(--text-tertiary); margin-left: 8px;">${node.fileData.crc32}</span>`;
     }
     
     // Database indicator
@@ -1753,14 +2045,24 @@ function toggleTreeFileSelection(fileId, checkbox) {
     const path = checkbox.getAttribute('data-path');
     const isDirectory = checkbox.getAttribute('data-is-directory') === 'true';
     const inDatabase = checkbox.getAttribute('data-in-database') === 'true';
+    const existsOnDisk = checkbox.getAttribute('data-exists-on-disk') === 'true';
+    
+    // Get the tree node element
+    const treeNode = checkbox.closest('.tree-node');
     
     if (checkbox.checked) {
         selectedTreeFiles.add({
             id: fileId,
             path: path,
             isDirectory: isDirectory,
-            inDatabase: inDatabase
+            inDatabase: inDatabase,
+            existsOnDisk: existsOnDisk
         });
+        
+        // Add visual selection to the row
+        if (treeNode) {
+            treeNode.classList.add('selected');
+        }
     } else {
         // Remove from selection
         selectedTreeFiles.forEach(item => {
@@ -1768,6 +2070,11 @@ function toggleTreeFileSelection(fileId, checkbox) {
                 selectedTreeFiles.delete(item);
             }
         });
+        
+        // Remove visual selection from the row
+        if (treeNode) {
+            treeNode.classList.remove('selected');
+        }
     }
     
     updateTreeSelectedCount();
@@ -1779,6 +2086,7 @@ function showTreeContextMenu(event, fileId, path, isDirectory, inDatabase) {
     event.stopPropagation();
     
     const contextMenu = document.getElementById('tree-context-menu');
+    const rescanItem = document.getElementById('context-rescan-item');
     
     // Store current target
     currentContextTarget = {
@@ -1787,6 +2095,15 @@ function showTreeContextMenu(event, fileId, path, isDirectory, inDatabase) {
         isDirectory: isDirectory,
         inDatabase: inDatabase
     };
+    
+    // Show/hide Rescan option based on whether item is in database
+    if (rescanItem) {
+        if (inDatabase) {
+            rescanItem.style.display = 'block';
+        } else {
+            rescanItem.style.display = 'none';
+        }
+    }
     
     // Position menu at mouse location
     contextMenu.style.left = event.pageX + 'px';
@@ -1847,6 +2164,16 @@ function contextArchiveFile() {
 function contextIntegrityCheck() {
     if (currentContextTarget) {
         showIntegrityCheckModal(currentContextTarget.path);
+    }
+    hideContextMenu();
+}
+
+function contextRescan() {
+    if (currentContextTarget) {
+        // Ensure this file is selected
+        ensureFileSelected(currentContextTarget);
+        // Call rescan function
+        rescanSelected();
     }
     hideContextMenu();
 }
@@ -1934,12 +2261,26 @@ function restoreTreeSelection() {
         const checkbox = document.querySelector(`.tree-checkbox[data-file-id="${selectedFile.id}"]`);
         if (checkbox) {
             checkbox.checked = true;
+            
+            // Also restore visual selection on the tree node
+            const treeNode = checkbox.closest('.tree-node');
+            if (treeNode) {
+                treeNode.classList.add('selected');
+            }
+            
             console.log('Restored checkbox for:', selectedFile.id);
         } else {
             // Try alternative selector
             const altCheckbox = document.querySelector(`[data-file-id="${selectedFile.id}"] .tree-checkbox`);
             if (altCheckbox) {
                 altCheckbox.checked = true;
+                
+                // Also restore visual selection on the tree node
+                const treeNode = altCheckbox.closest('.tree-node');
+                if (treeNode) {
+                    treeNode.classList.add('selected');
+                }
+                
                 console.log('Restored checkbox with alternative selector for:', selectedFile.id);
             } else {
                 console.warn('Could not find checkbox for:', selectedFile.id);
@@ -1985,6 +2326,51 @@ function makeTreeNodesFocusable() {
 
 // Selected tree files
 let selectedTreeFiles = new Set();
+
+// Helper function to get all selected items (from both table and tree views)
+function getAllSelectedFiles() {
+    // Extract IDs from tree files (which are objects)
+    const treeFileIds = Array.from(selectedTreeFiles).map(item => item.id);
+    // Combine with table file IDs
+    const combined = new Set([...selectedFiles, ...treeFileIds]);
+    return combined;
+}
+
+// Helper function to check if any files are selected
+function hasSelectedFiles() {
+    return selectedFiles.size > 0 || selectedTreeFiles.size > 0;
+}
+
+// Get selected database items (files/folders that are in database)
+function getSelectedDatabaseItems() {
+    const databaseItems = [];
+    
+    selectedTreeFiles.forEach(item => {
+        // Only include items that are actually in the database
+        if (item.inDatabase) {
+            databaseItems.push({
+                id: item.id,
+                full_path: item.path,
+                is_directory: item.isDirectory,
+                exists_on_disk: item.existsOnDisk
+            });
+        }
+    });
+    
+    return databaseItems;
+}
+
+// Clear selection
+function clearSelection() {
+    selectedTreeFiles.clear();
+    
+    // Uncheck all checkboxes
+    document.querySelectorAll('.tree-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    updateTreeSelectedCount();
+}
 
 // Current operation type for destination modal
 let currentDestinationOperation = null;
@@ -2477,8 +2863,9 @@ function toggleSelectAll() {
     
     // Clear current selection
     selectedFiles.clear();
+    selectedTreeFiles.clear();
     
-    // Update all file checkboxes
+    // Update all file checkboxes (table view)
     document.querySelectorAll('.file-checkbox').forEach(checkbox => {
         checkbox.checked = isChecked;
         const fileId = parseInt(checkbox.dataset.fileId);
@@ -2491,6 +2878,35 @@ function toggleSelectAll() {
         }
     });
     
+    // Update all tree checkboxes (tree view)
+    document.querySelectorAll('.tree-checkbox').forEach(checkbox => {
+        checkbox.checked = isChecked;
+        const fileId = checkbox.dataset.fileId;
+        const path = checkbox.getAttribute('data-path');
+        const isDirectory = checkbox.getAttribute('data-is-directory') === 'true';
+        const inDatabase = checkbox.getAttribute('data-in-database') === 'true';
+        const existsOnDisk = checkbox.getAttribute('data-exists-on-disk') === 'true';
+        
+        if (isChecked) {
+            selectedTreeFiles.add({
+                id: fileId,
+                path: path,
+                isDirectory: isDirectory,
+                inDatabase: inDatabase,
+                existsOnDisk: existsOnDisk
+            });
+            checkbox.closest('.tree-node')?.classList.add('selected');
+        } else {
+            // Remove from selection by finding matching object
+            selectedTreeFiles.forEach(item => {
+                if (item.id === fileId) {
+                    selectedTreeFiles.delete(item);
+                }
+            });
+            checkbox.closest('.tree-node')?.classList.remove('selected');
+        }
+    });
+    
     // Sync both select all checkboxes
     const selectAllMain = document.getElementById('select-all');
     const selectAllHeader = document.getElementById('header-select-all');
@@ -2498,6 +2914,7 @@ function toggleSelectAll() {
     if (selectAllHeader) selectAllHeader.checked = isChecked;
     
     updateSelectedFilesCount();
+    updateTreeSelectedCount();
 }
 
 function toggleFileSelection(fileId, checkbox) {
@@ -2623,18 +3040,20 @@ function openFileAction() {
 }
 
 function copyFilesAction() {
-    if (selectedFiles.size === 0) {
+    if (!hasSelectedFiles()) {
         showMessage('Выберите файлы для копирования', 'error');
         return;
     }
     
-    console.log('Copy action started, selected files:', Array.from(selectedFiles));
+    const allSelected = getAllSelectedFiles();
+    
+    console.log('Copy action started, selected files:', Array.from(allSelected));
     
     currentOperation = 'copy';
     showModal(
         'Копирование файлов',
         `
-        <p>Копировать ${selectedFiles.size} файлов в выбранную папку:</p>
+        <p>Копировать ${allSelected.size} файлов в выбранную папку:</p>
         
         <div class="form-group">
             <label for="destination-path">Путь назначения:</label>
@@ -2660,12 +3079,14 @@ function copyFilesAction() {
 }
 
 function moveFilesAction() {
-    if (selectedFiles.size === 0) {
+    if (!hasSelectedFiles()) {
         showMessage('Выберите файлы для перемещения', 'error');
         return;
     }
     
-    console.log('Move action started, selected files:', Array.from(selectedFiles));
+    const allSelected = getAllSelectedFiles();
+    
+    console.log('Move action started, selected files:', Array.from(allSelected));
     
     currentOperation = 'move';
     showModal(
@@ -2675,7 +3096,7 @@ function moveFilesAction() {
             <strong>⚠️ ВНИМАНИЕ:</strong> Файлы будут перемещены (вырезаны) из текущего расположения!
         </div>
         
-        <p>Переместить ${selectedFiles.size} файлов в выбранную папку:</p>
+        <p>Переместить ${allSelected.size} файлов в выбранную папку:</p>
         
         <div class="form-group">
             <label for="destination-path">Путь назначения:</label>
@@ -2701,10 +3122,12 @@ function moveFilesAction() {
 }
 
 async function archiveFilesAction() {
-    if (selectedFiles.size === 0) {
+    if (!hasSelectedFiles()) {
         showMessage('Выберите файлы для архивирования', 'error');
         return;
     }
+    
+    const allSelected = getAllSelectedFiles();
     
     // Check available archivers
     try {
@@ -2746,7 +3169,7 @@ async function archiveFilesAction() {
         showModal(
             'Архивирование файлов',
             `
-            <p>Создать архив из ${selectedFiles.size} файлов:</p>
+            <p>Создать архив из ${allSelected.size} файлов:</p>
             
             <div class="form-group">
                 <label for="archive-name">Имя архива (без расширения):</label>
@@ -2783,17 +3206,19 @@ async function archiveFilesAction() {
 }
 
 function deleteFilesAction() {
-    if (selectedFiles.size === 0) {
+    if (!hasSelectedFiles()) {
         showMessage('Выберите файлы для удаления', 'error');
         return;
     }
+    
+    const allSelected = getAllSelectedFiles();
     
     currentOperation = 'delete';
     showModal(
         'Удаление файлов',
         `
         <p style="color: #e74c3c; font-weight: bold;">⚠️ ВНИМАНИЕ!</p>
-        <p>Вы собираетесь удалить ${selectedFiles.size} файлов с диска.</p>
+        <p>Вы собираетесь удалить ${allSelected.size} файлов с диска.</p>
         <p>Это действие нельзя отменить!</p>
         <p>Файлы будут удалены навсегда.</p>
         `,
@@ -2810,7 +3235,8 @@ async function confirmOperation() {
         return;
     }
     
-    const fileIds = Array.from(selectedFiles);
+    const allSelected = getAllSelectedFiles();
+    const fileIds = Array.from(allSelected);
     console.log('File IDs for operation:', fileIds);
     
     if (fileIds.length === 0) {
