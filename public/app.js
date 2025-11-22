@@ -367,14 +367,52 @@ function updateSelectedCount() {
 
 
 
-// Scan selected directories with batch processing
-async function scanSelectedDirectories() {
+// Show scan confirmation modal
+function showScanConfirmModal() {
     if (selectedDirectories.size === 0) {
         showMessage('Выберите папки для сканирования', 'error');
         return;
     }
     
-    const threadCount = parseInt(document.getElementById('thread-count').value) || 4;
+    // Populate folders list
+    const foldersList = document.getElementById('scan-folders-list');
+    const pathsArray = Array.from(selectedDirectories);
+    
+    foldersList.innerHTML = pathsArray.map(path => 
+        `<div style="padding: 5px; border-bottom: 1px solid #eee;">📁 ${path}</div>`
+    ).join('');
+    
+    // Set default values
+    document.getElementById('scan-thread-count').value = 8;
+    document.getElementById('scan-recursive-checkbox').checked = true;
+    document.getElementById('scan-calculate-crc32').checked = true;
+    
+    // Show modal
+    document.getElementById('scan-confirm-modal').style.display = 'block';
+}
+
+// Close scan confirmation modal
+function closeScanConfirmModal() {
+    document.getElementById('scan-confirm-modal').style.display = 'none';
+}
+
+// Confirm and start scan operation
+async function confirmScanOperation() {
+    closeScanConfirmModal();
+    await performScan();
+}
+
+// Scan selected directories with batch processing
+async function performScan() {
+    if (selectedDirectories.size === 0) {
+        showMessage('Выберите папки для сканирования', 'error');
+        return;
+    }
+    
+    const threadCount = parseInt(document.getElementById('scan-thread-count').value) || 8;
+    const recursiveScan = document.getElementById('scan-recursive-checkbox').checked;
+    const calculateCrc32 = document.getElementById('scan-calculate-crc32').checked;
+    
     const scanBtn = document.getElementById('scan-btn');
     scanBtn.disabled = true;
     scanBtn.textContent = 'Сканирование...';
@@ -386,12 +424,18 @@ async function scanSelectedDirectories() {
         const pathsArray = Array.from(selectedDirectories);
         updateProgress(0, `Сканирование ${pathsArray.length} папок...`);
         
-        const calculateCrc32 = document.getElementById('calculate-crc32').checked;
+        // Use the checkbox value for all selected paths
+        const pathsWithRecursion = pathsArray.map(parentPath => {
+            return {
+                path: parentPath,
+                recursive: recursiveScan
+            };
+        });
         
         const result = await apiCall('/scan-multiple', { 
             method: 'POST',
             body: JSON.stringify({ 
-                paths: pathsArray,
+                paths: pathsWithRecursion,
                 threads: threadCount,
                 calculateCrc32: calculateCrc32
             })
@@ -409,10 +453,11 @@ async function scanSelectedDirectories() {
             if (finalProgress && finalProgress.duration) {
                 const scanTime = formatScanTime(Math.round(finalProgress.duration / 1000));
                 
+                const scanMode = recursiveScan ? 'рекурсивно' : 'только верхний уровень';
                 if (finalProgress.status === 'cancelled') {
                     showMessage(`Сканирование остановлено: обработано ${finalProgress.processed}/${finalProgress.total} файлов за ${scanTime}`, 'warning');
                 } else {
-                    showMessage(`Сканирование завершено: ${pathsArray.length} папок обработано за ${scanTime}. Потоков: ${threadCount}`, 'success');
+                    showMessage(`Сканирование завершено (${scanMode}): ${pathsArray.length} папок обработано за ${scanTime}. Потоков: ${threadCount}`, 'success');
                 }
                 
                 // Update last scan time in stats
@@ -424,10 +469,11 @@ async function scanSelectedDirectories() {
                 const itemsPerSecond = durationSeconds > 0 ? Math.round(totalItems / durationSeconds) : 0;
                 document.getElementById('scan-performance').textContent = `${itemsPerSecond} файлов/сек`;
             } else {
+                const scanMode = recursiveScan ? 'рекурсивно' : 'только верхний уровень';
                 if (finalProgress && finalProgress.status === 'cancelled') {
-                    showMessage(`Сканирование остановлено: ${pathsArray.length} папок. Потоков: ${threadCount}`, 'warning');
+                    showMessage(`Сканирование остановлено (${scanMode}): ${pathsArray.length} папок. Потоков: ${threadCount}`, 'warning');
                 } else {
-                    showMessage(`Сканирование завершено: ${pathsArray.length} папок обработано. Потоков: ${threadCount}`, 'success');
+                    showMessage(`Сканирование завершено (${scanMode}): ${pathsArray.length} папок обработано. Потоков: ${threadCount}`, 'success');
                 }
             }
         }
@@ -729,11 +775,12 @@ async function clearScanHistory() {
 }
 
 // Show archive modal
-function showArchiveModal(selectedFiles) {
+async function showArchiveModal(selectedFiles) {
     const modal = document.getElementById('archive-modal');
     const filesList = document.getElementById('archive-files-list');
     const archiveName = document.getElementById('archive-name');
     const destination = document.getElementById('archive-destination');
+    const formatSelect = document.getElementById('archive-format');
     
     // Generate archive name from selected files with current date
     let baseName;
@@ -766,6 +813,15 @@ function showArchiveModal(selectedFiles) {
     document.getElementById('volume-size-group').style.display = 'none';
     document.getElementById('archive-compression').value = '3';
     
+    // Fetch and populate available formats
+    try {
+        const archiverInfo = await apiCall('/archivers');
+        populateFormatDropdown(archiverInfo);
+    } catch (error) {
+        console.error('Failed to load archiver info:', error);
+        formatSelect.innerHTML = '<option value="">Ошибка загрузки форматов</option>';
+    }
+    
     // Populate files list with better formatting
     filesList.innerHTML = '<h4>Файлы для архивации:</h4>' + 
         selectedFiles.map(file => 
@@ -776,6 +832,71 @@ function showArchiveModal(selectedFiles) {
         ).join('');
     
     modal.style.display = 'block';
+}
+
+// Populate format dropdown with available formats
+function populateFormatDropdown(archiverInfo) {
+    const formatSelect = document.getElementById('archive-format');
+    formatSelect.innerHTML = '';
+    
+    const formatLabels = {
+        'zip': 'ZIP (7-Zip)',
+        'rar': 'RAR (WinRAR)',
+        '7z': '7Z (7-Zip)'
+    };
+    
+    const formatOrder = ['7z', 'zip', 'rar'];
+    
+    if (!archiverInfo.supportedFormats || archiverInfo.supportedFormats.length === 0) {
+        formatSelect.innerHTML = '<option value="">Нет доступных архиваторов</option>';
+        formatSelect.disabled = true;
+        return;
+    }
+    
+    formatSelect.disabled = false;
+    
+    // Add available formats in order
+    formatOrder.forEach(format => {
+        if (archiverInfo.supportedFormats.includes(format)) {
+            const option = document.createElement('option');
+            option.value = format;
+            option.textContent = formatLabels[format] || format.toUpperCase();
+            formatSelect.appendChild(option);
+        }
+    });
+    
+    // Add unavailable formats as disabled options
+    formatOrder.forEach(format => {
+        if (!archiverInfo.supportedFormats.includes(format)) {
+            const option = document.createElement('option');
+            option.value = format;
+            option.textContent = `${formatLabels[format] || format.toUpperCase()} (недоступен)`;
+            option.disabled = true;
+            formatSelect.appendChild(option);
+        }
+    });
+    
+    // Select first available format
+    if (archiverInfo.supportedFormats.length > 0) {
+        formatSelect.value = formatOrder.find(f => archiverInfo.supportedFormats.includes(f)) || archiverInfo.supportedFormats[0];
+    }
+}
+
+// Update archive filename extension based on selected format
+function updateArchiveExtension() {
+    const archiveName = document.getElementById('archive-name');
+    const formatSelect = document.getElementById('archive-format');
+    const selectedFormat = formatSelect.value;
+    
+    if (!selectedFormat || !archiveName.value) {
+        return;
+    }
+    
+    // Remove existing extension
+    let baseName = archiveName.value.replace(/\.(zip|rar|7z)$/i, '');
+    
+    // Add new extension
+    archiveName.value = `${baseName}.${selectedFormat}`;
 }
 
 // Close archive modal
@@ -803,11 +924,12 @@ function toggleMultivolume() {
 // Create archive with enhanced options
 async function createArchive() {
     const destination = document.getElementById('archive-destination').value;
-    const archiveName = document.getElementById('archive-name').value;
+    let archiveName = document.getElementById('archive-name').value;
     const password = document.getElementById('archive-password').value;
     const compression = document.getElementById('archive-compression').value;
     const isMultivolume = document.getElementById('archive-multivolume').checked;
     const volumeSize = document.getElementById('archive-volume-size').value;
+    const format = document.getElementById('archive-format').value;
     
     if (!destination) {
         showMessage('Выберите папку для сохранения', 'error');
@@ -816,6 +938,11 @@ async function createArchive() {
     
     if (!archiveName) {
         showMessage('Введите имя архива', 'error');
+        return;
+    }
+    
+    if (!format) {
+        showMessage('Выберите формат архива', 'error');
         return;
     }
     
@@ -828,6 +955,10 @@ async function createArchive() {
         showMessage('Нет выбранных файлов для архивации', 'error');
         return;
     }
+    
+    // Ensure archive name has correct extension
+    archiveName = archiveName.replace(/\.(zip|rar|7z)$/i, '');
+    archiveName = `${archiveName}.${format}`;
     
     // Close archive modal and show progress modal
     closeArchiveModal();
@@ -844,39 +975,130 @@ async function createArchive() {
             return;
         }
         
-        appendArchiveLog(`📦 Архивация ${fileIds.length} файлов с помощью WinRAR...`);
+        appendArchiveLog(`📦 Начало архивации ${fileIds.length} файлов...`);
         
-        const result = await apiCall('/files/archive-winrar', {
+        // Start archive creation (returns immediately with archiveId)
+        const startResult = await apiCall('/files/archive', {
             method: 'POST',
             body: JSON.stringify({
                 fileIds: fileIds,
                 archiveName: archiveName,
-                destination: destination,
-                password: password,
-                compression: compression,
-                isMultivolume: isMultivolume,
-                volumeSize: volumeSize
+                destinationPath: destination,
+                format: format,
+                password: password || undefined,
+                volumeSize: isMultivolume ? volumeSize : undefined,
+                compression: compression
             })
         });
         
-        updateArchiveProgress(100, 'Архив создан успешно');
-        appendArchiveLog(`✅ Архив создан: ${result.archiveName}`);
-        appendArchiveLog(`📁 Размер: ${formatBytes(result.archiveSize)}`);
-        appendArchiveLog(`📍 Расположение: ${result.archivePath}`);
+        const archiveId = startResult.archiveId;
+        const archiver = startResult.archiver;
+        const archiveFormat = startResult.format;
         
-        if (result.log) {
-            appendArchiveLog(`\n📋 Лог WinRAR:\n${result.log}`);
+        appendArchiveLog(`✅ Архивация запущена (ID: ${archiveId})`);
+        
+        // Display archiver type and format
+        if (archiver) {
+            const archiverNames = {
+                '7zip': '7-Zip',
+                'winrar': 'WinRAR'
+            };
+            appendArchiveLog(`🔧 Архиватор: ${archiverNames[archiver] || archiver}`);
+        }
+        if (archiveFormat) {
+            appendArchiveLog(`📋 Формат: ${archiveFormat.toUpperCase()}`);
         }
         
-        document.getElementById('archive-close-btn').style.display = 'inline-block';
+        // Connect to progress stream using Server-Sent Events
+        const eventSource = new EventSource(`/api/archive/progress/${archiveId}`);
         
-        showMessage(`Архив создан: ${result.archiveName}`, 'success');
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'connected') {
+                    appendArchiveLog('🔗 Подключено к потоку прогресса');
+                } else if (data.type === 'progress') {
+                    // Update progress bar
+                    updateArchiveProgress(data.progress || 0, data.status || 'Processing...');
+                    
+                    // Update current file
+                    if (data.currentFile) {
+                        appendArchiveLog(`   ${data.currentFile}`);
+                    }
+                    
+                    // Add new console output lines
+                    if (data.consoleOutput && data.consoleOutput.length > 0) {
+                        const lastOutputIndex = window.lastArchiveOutputIndex || 0;
+                        const newLines = data.consoleOutput.slice(lastOutputIndex);
+                        newLines.forEach(item => {
+                            appendArchiveLog(item.line);
+                        });
+                        window.lastArchiveOutputIndex = data.consoleOutput.length;
+                    }
+                    
+                    // Handle completion
+                    if (data.status === 'completed') {
+                        eventSource.close();
+                        updateArchiveProgress(100, 'Архив создан успешно!');
+                        if (data.archiveSize) {
+                            appendArchiveLog(`📊 Размер архива: ${formatBytes(data.archiveSize)}`);
+                        }
+                        if (data.archivePath) {
+                            appendArchiveLog(`📍 Расположение: ${data.archivePath}`);
+                        }
+                        document.getElementById('archive-close-btn').style.display = 'inline-block';
+                        showMessage('Архив создан успешно!', 'success');
+                        window.lastArchiveOutputIndex = 0;
+                    }
+                    
+                    // Handle failure
+                    if (data.status === 'failed') {
+                        eventSource.close();
+                        updateArchiveProgress(0, 'Ошибка создания архива');
+                        if (data.error) {
+                            appendArchiveLog(`❌ Ошибка: ${data.error}`);
+                        }
+                        document.getElementById('archive-close-btn').style.display = 'inline-block';
+                        showMessage('Ошибка создания архива', 'error');
+                        window.lastArchiveOutputIndex = 0;
+                    }
+                } else if (data.type === 'error') {
+                    eventSource.close();
+                    appendArchiveLog(`❌ Ошибка: ${data.message}`);
+                    updateArchiveProgress(0, 'Ошибка');
+                    document.getElementById('archive-close-btn').style.display = 'inline-block';
+                    window.lastArchiveOutputIndex = 0;
+                }
+            } catch (error) {
+                console.error('Error parsing progress data:', error);
+            }
+        };
+        
+        eventSource.onerror = (error) => {
+            console.error('EventSource error:', error);
+            eventSource.close();
+            appendArchiveLog('❌ Потеряно соединение с сервером');
+            document.getElementById('archive-close-btn').style.display = 'inline-block';
+            window.lastArchiveOutputIndex = 0;
+        };
         
     } catch (error) {
         updateArchiveProgress(0, 'Ошибка создания архива');
-        appendArchiveLog(`❌ Ошибка: ${error.message}`);
+        
+        // Handle format-specific errors
+        let errorMessage = error.message;
+        if (errorMessage.includes('requires') && errorMessage.includes('not available')) {
+            // Format not supported error
+            appendArchiveLog(`❌ Формат ${format.toUpperCase()} недоступен`);
+            appendArchiveLog(`   ${errorMessage}`);
+            showMessage(`Формат ${format.toUpperCase()} недоступен. Выберите другой формат.`, 'error');
+        } else {
+            appendArchiveLog(`❌ Ошибка: ${errorMessage}`);
+            showMessage('Ошибка создания архива: ' + errorMessage, 'error');
+        }
+        
         document.getElementById('archive-close-btn').style.display = 'inline-block';
-        showMessage('Ошибка создания архива: ' + error.message, 'error');
     }
 }
 
@@ -2410,6 +2632,52 @@ async function deleteFile(fileId) {
     }
 }
 
+// Backup database files (filestash.db, filestash.db-shm, filestash.db-wal)
+async function backupDatabase() {
+    if (!confirm('Создать резервную копию файлов базы данных?\n\nФайлы filestash.db, filestash.db-shm, filestash.db-wal будут заархивированы в формате 7z с максимальным сжатием.')) {
+        return;
+    }
+    
+    try {
+        // Show progress modal
+        showArchiveProgressModal();
+        updateArchiveProgress(10, 'Подготовка...');
+        appendArchiveLog('📦 Создание резервной копии файлов базы данных...');
+        appendArchiveLog('📁 Файлы: filestash.db, filestash.db-shm, filestash.db-wal');
+        appendArchiveLog('🗜️ Формат: 7Z (максимальное сжатие)');
+        appendArchiveLog('📍 Папка: ./backups');
+        appendArchiveLog('');
+        
+        updateArchiveProgress(30, 'Копирование файлов...');
+        appendArchiveLog('📋 Копирование файлов базы данных...');
+        
+        const result = await apiCall('/database/backup', { method: 'POST' });
+        
+        updateArchiveProgress(100, 'Завершено');
+        
+        const archiveSizeMB = (result.archiveSize / 1024 / 1024).toFixed(2);
+        
+        appendArchiveLog('');
+        appendArchiveLog('✅ Резервная копия создана успешно!');
+        appendArchiveLog(`📁 Файл: ${result.filename}`);
+        appendArchiveLog(`📊 Файлов: ${result.filesBackedUp}`);
+        appendArchiveLog(`💾 Размер архива: ${archiveSizeMB} MB`);
+        appendArchiveLog(`📍 Расположение: ./backups/${result.filename}`);
+        
+        document.getElementById('archive-close-btn').style.display = 'inline-block';
+        
+        showMessage('Резервная копия создана успешно!', 'success');
+        
+    } catch (error) {
+        console.error('Backup error:', error);
+        updateArchiveProgress(0, 'Ошибка');
+        appendArchiveLog('');
+        appendArchiveLog(`❌ Ошибка: ${error.message}`);
+        document.getElementById('archive-close-btn').style.display = 'inline-block';
+        showMessage(`Ошибка создания резервной копии: ${error.message}`, 'error');
+    }
+}
+
 // Clear database
 async function clearDatabase() {
     if (!confirm('Вы уверены, что хотите очистить всю базу данных? Это действие нельзя отменить.')) {
@@ -3579,24 +3847,102 @@ async function createTestFolder() {
     }
 }
 
-// Backup database
-async function backupDatabase() {
+
+// Load backup history
+async function loadBackupHistory() {
     try {
-        showMessage('Создание резервной копии...', 'info');
-        const result = await apiCall('/backup', { method: 'POST' });
+        const result = await apiCall('/api/backups/list');
+        const backups = result.backups || [];
         
-        const statusDiv = document.getElementById('settings-status');
-        statusDiv.innerHTML = `
-            <div class="success">
-                ✅ Резервная копия создана успешно<br>
-                📁 Файл: ${result.filename}<br>
-                📊 Записей: ${result.records}
-            </div>
-        `;
+        const container = document.getElementById('backup-history-container');
+        if (!container) return;
+        
+        if (backups.length === 0) {
+            container.innerHTML = '<p style="color: #888;">Резервные копии отсутствуют</p>';
+            return;
+        }
+        
+        let html = '<table style="width: 100%; border-collapse: collapse;">';
+        html += '<thead><tr style="background: #f0f0f0; border-bottom: 2px solid #ddd;">';
+        html += '<th style="padding: 10px; text-align: left;">Дата создания</th>';
+        html += '<th style="padding: 10px; text-align: left;">Файл</th>';
+        html += '<th style="padding: 10px; text-align: right;">Размер</th>';
+        html += '<th style="padding: 10px; text-align: center;">Действия</th>';
+        html += '</tr></thead><tbody>';
+        
+        backups.forEach(backup => {
+            const sizeMB = (backup.size / 1024 / 1024).toFixed(2);
+            html += '<tr style="border-bottom: 1px solid #eee;">';
+            html += `<td style="padding: 10px;">${backup.createdFormatted}</td>`;
+            html += `<td style="padding: 10px; font-family: monospace; font-size: 12px;">${backup.filename}</td>`;
+            html += `<td style="padding: 10px; text-align: right;">${sizeMB} MB</td>`;
+            html += `<td style="padding: 10px; text-align: center;">`;
+            html += `<button class="btn btn-primary" onclick="restoreFromBackup('${backup.filename}')" style="padding: 5px 10px; font-size: 12px; margin-right: 5px;">📥 Восстановить</button>`;
+            html += `<button class="btn btn-danger" onclick="deleteBackup('${backup.filename}')" style="padding: 5px 10px; font-size: 12px;">🗑️ Удалить</button>`;
+            html += `</td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Failed to load backup history:', error);
+    }
+}
+
+// Restore from backup
+async function restoreFromBackup(filename) {
+    if (!confirm(
+        `⚠️ ВНИМАНИЕ!\n\n` +
+        `Восстановление базы данных из резервной копии:\n${filename}\n\n` +
+        `Это действие:\n` +
+        `1. Остановит сервер\n` +
+        `2. Заменит текущую базу данных\n` +
+        `3. Перезапустит сервер\n\n` +
+        `Рекомендуется создать резервную копию текущей базы перед восстановлением!\n\n` +
+        `Продолжить?`
+    )) {
+        return;
+    }
+    
+    try {
+        showMessage('Восстановление базы данных...', 'info');
+        
+        const result = await apiCall('/api/restore', {
+            method: 'POST',
+            body: JSON.stringify({ backupFile: filename })
+        });
         
         showMessage(result.message, 'success');
+        
+        // Reload page after restore
+        setTimeout(() => {
+            window.location.reload();
+        }, 2000);
+        
     } catch (error) {
-        showMessage('Ошибка создания резервной копии: ' + error.message, 'error');
+        showMessage('Ошибка восстановления: ' + error.message, 'error');
+    }
+}
+
+// Delete backup
+async function deleteBackup(filename) {
+    if (!confirm(`Удалить резервную копию:\n${filename}?`)) {
+        return;
+    }
+    
+    try {
+        await apiCall('/api/backups/delete', {
+            method: 'POST',
+            body: JSON.stringify({ filename })
+        });
+        
+        showMessage('Резервная копия удалена', 'success');
+        loadBackupHistory();
+        
+    } catch (error) {
+        showMessage('Ошибка удаления: ' + error.message, 'error');
     }
 }
 
@@ -3921,7 +4267,97 @@ function displayDatabaseIntegrityResults(results) {
 
 // Database restore functions
 
-// Show restore modal
+// Show database restore modal with list of available backups
+async function showDatabaseRestoreModal() {
+    try {
+        // Get list of available database backups
+        const result = await apiCall('/api/backups/list');
+        const backups = result.backups || [];
+        
+        // Filter only 7z archives (database backups)
+        const databaseBackups = backups.filter(b => b.filename.endsWith('.7z'));
+        
+        if (databaseBackups.length === 0) {
+            showMessage('Резервные копии базы данных не найдены', 'warning');
+            return;
+        }
+        
+        // Create selection dialog
+        let html = '<div style="max-width: 600px; margin: 20px auto;">';
+        html += '<h3>Выберите резервную копию для восстановления</h3>';
+        html += '<p style="color: #e74c3c; margin: 10px 0;"><strong>⚠️ ВНИМАНИЕ:</strong> Восстановление заменит текущие файлы базы данных!</p>';
+        html += '<select id="backup-select" style="width: 100%; padding: 10px; margin: 10px 0; font-size: 14px;">';
+        
+        databaseBackups.forEach(backup => {
+            const sizeMB = (backup.size / 1024 / 1024).toFixed(2);
+            html += `<option value="${backup.filename}">${backup.createdFormatted} - ${backup.filename} (${sizeMB} MB)</option>`;
+        });
+        
+        html += '</select>';
+        html += '<div style="margin-top: 20px; text-align: right;">';
+        html += '<button class="btn btn-secondary" onclick="closeMessage()" style="margin-right: 10px;">Отмена</button>';
+        html += '<button class="btn btn-primary" onclick="restoreDatabaseFromBackup()">📥 Восстановить</button>';
+        html += '</div>';
+        html += '</div>';
+        
+        // Show in a custom modal
+        const messageDiv = document.getElementById('message');
+        messageDiv.innerHTML = html;
+        messageDiv.className = 'message';
+        messageDiv.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error loading backups:', error);
+        showMessage(`Ошибка загрузки списка резервных копий: ${error.message}`, 'error');
+    }
+}
+
+// Restore database from selected backup
+async function restoreDatabaseFromBackup() {
+    const select = document.getElementById('backup-select');
+    if (!select) return;
+    
+    const filename = select.value;
+    
+    if (!confirm(
+        `⚠️ ВНИМАНИЕ!\n\n` +
+        `Восстановление базы данных из резервной копии:\n${filename}\n\n` +
+        `Это действие:\n` +
+        `1. Распакует архив\n` +
+        `2. Заменит текущие файлы базы данных\n` +
+        `3. Потребует перезагрузки страницы\n\n` +
+        `Продолжить?`
+    )) {
+        return;
+    }
+    
+    try {
+        closeMessage();
+        showMessage('Восстановление базы данных...', 'info');
+        
+        const result = await apiCall('/database/restore', {
+            method: 'POST',
+            body: JSON.stringify({ filename })
+        });
+        
+        showMessage(
+            `✅ База данных восстановлена успешно!\n\n` +
+            `Страница будет перезагружена через 3 секунды...`,
+            'success'
+        );
+        
+        // Reload page after 3 seconds
+        setTimeout(() => {
+            window.location.reload();
+        }, 3000);
+        
+    } catch (error) {
+        console.error('Restore error:', error);
+        showMessage(`Ошибка восстановления: ${error.message}`, 'error');
+    }
+}
+
+// Show restore modal (old JSON restore)
 function showRestoreModal() {
     const modal = document.getElementById('restore-modal');
     const backupFileInput = document.getElementById('backup-file-path');
@@ -3966,7 +4402,7 @@ async function startRestore() {
     try {
         console.log(`🔄 Starting database restore from ${backupFilePath} in ${restoreMode} mode`);
         
-        const result = await apiCall('/restore', {
+        const result = await apiCall('/api/restore', {
             method: 'POST',
             body: JSON.stringify({
                 backupFile: backupFilePath,

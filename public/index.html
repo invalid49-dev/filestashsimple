@@ -381,11 +381,11 @@
 
         .modal-content {
             background-color: white;
-            margin: 15% auto;
+            margin: 5% auto;
             padding: 20px;
             border-radius: 8px;
-            width: 80%;
-            max-width: 500px;
+            width: 95%;
+            max-width: 1200px;
         }
 
         .modal-header {
@@ -435,11 +435,16 @@
 
             .modal-content {
                 width: 95%;
-                margin: 10% auto;
+                margin: 5% auto;
             }
 
             .file-browser {
                 max-height: 200px;
+            }
+            
+            /* Stack archive modal columns vertically on mobile */
+            #archive-body {
+                grid-template-columns: 1fr !important;
             }
         }
 
@@ -932,7 +937,7 @@
             </div>
 
             <div style="margin-top: 15px;">
-                <button class="btn btn-success" onclick="scanSelectedDirectories()" id="scan-btn" disabled>
+                <button class="btn btn-success" onclick="showScanConfirmModal()" id="scan-btn" disabled>
                     🚀 Сканировать выбранные папки (<span id="selected-count">0</span>)
                 </button>
             </div>
@@ -1017,24 +1022,7 @@
         <!-- Settings Tab -->
         <div id="settings-tab" class="tab-content">
             <h2>Настройки</h2>
-            
-            <div class="form-group">
-                <label for="thread-count">Количество потоков для сканирования:</label>
-                <input type="number" id="thread-count" min="1" max="32" value="8" style="width: 100px;">
-                <p style="margin-top: 5px; color: #7f8c8d; font-size: 12px;">
-                    Рекомендуется: 8-16 потоков для вашего процессора 12/24. Больше потоков = быстрее сканирование.
-                </p>
-            </div>
-            
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="calculate-crc32" checked style="margin-right: 8px;">
-                    Вычислять CRC32 для всех файлов
-                </label>
-                <p style="margin-top: 5px; color: #7f8c8d; font-size: 12px;">
-                    Отключение CRC32 значительно ускорит сканирование, но уберет возможность поиска дубликатов
-                </p>
-            </div>
+            <!-- Scan settings moved to confirmation modal -->
             
             <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 6px; font-size: 12px;">
                 <strong>💡 Оптимизации производительности:</strong>
@@ -1053,7 +1041,7 @@
             <div class="form-group">
                 <h3>Управление базой данных</h3>
                 <button class="btn btn-success" onclick="backupDatabase()">💾 Создать резервную копию</button>
-                <button class="btn btn-info" onclick="showRestoreModal()">📥 Восстановить из копии</button>
+                <button class="btn btn-info" onclick="showDatabaseRestoreModal()">📥 Восстановить из копии</button>
                 <button class="btn btn-warning" onclick="cleanupDatabase()">🧹 Очистить несуществующие файлы</button>
                 <button class="btn btn-primary" onclick="checkDatabaseIntegrity()">🔍 Проверить целостность</button>
                 <button class="btn btn-info" onclick="compactDatabase()">🗜️ Сжать базу данных</button>
@@ -1168,49 +1156,63 @@
                 <h3>Создание архива</h3>
                 <span class="close" onclick="closeArchiveModal()">&times;</span>
             </div>
-            <div id="archive-body">
-                <div class="form-group">
-                    <label for="archive-destination">Папка для сохранения:</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="text" id="archive-destination" placeholder="Введите путь или нажмите Обзор...">
-                        <button class="btn btn-secondary" onclick="browseArchiveDestination()">📂 Обзор</button>
+            <div id="archive-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <!-- Left column: Settings -->
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div class="form-group">
+                        <label for="archive-destination">Папка для сохранения:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="archive-destination" placeholder="Введите путь или нажмите Обзор...">
+                            <button class="btn btn-secondary" onclick="browseArchiveDestination()">📂 Обзор</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="archive-name">Имя архива:</label>
+                        <input type="text" id="archive-name" placeholder="archive">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="archive-format">Формат архива:</label>
+                        <select id="archive-format" onchange="updateArchiveExtension()">
+                            <option value="">Загрузка форматов...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="archive-password">Пароль (необязательно):</label>
+                        <input type="password" id="archive-password" placeholder="Оставьте пустым для архива без пароля">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="archive-compression">Степень сжатия:</label>
+                        <select id="archive-compression">
+                            <option value="0">Без сжатия</option>
+                            <option value="1">Быстрое</option>
+                            <option value="3" selected>Нормальное</option>
+                            <option value="5">Максимальное</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="archive-multivolume" onchange="toggleMultivolume()">
+                            Многотомный архив
+                        </label>
+                    </div>
+                    
+                    <div class="form-group" id="volume-size-group" style="display: none;">
+                        <label for="archive-volume-size">Размер тома (МБ):</label>
+                        <input type="number" id="archive-volume-size" placeholder="100" min="1" max="4096">
                     </div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="archive-name">Имя архива:</label>
-                    <input type="text" id="archive-name" placeholder="archive">
-                </div>
-                
-                <div class="form-group">
-                    <label for="archive-password">Пароль (необязательно):</label>
-                    <input type="password" id="archive-password" placeholder="Оставьте пустым для архива без пароля">
-                </div>
-                
-                <div class="form-group">
-                    <label for="archive-compression">Степень сжатия:</label>
-                    <select id="archive-compression">
-                        <option value="0">Без сжатия</option>
-                        <option value="1">Быстрое</option>
-                        <option value="3" selected>Нормальное</option>
-                        <option value="5">Максимальное</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="archive-multivolume" onchange="toggleMultivolume()">
-                        Многотомный архив
-                    </label>
-                </div>
-                
-                <div class="form-group" id="volume-size-group" style="display: none;">
-                    <label for="archive-volume-size">Размер тома (МБ):</label>
-                    <input type="number" id="archive-volume-size" placeholder="100" min="1" max="4096">
-                </div>
-                
-                <div id="archive-files-list" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
-                    <!-- Files list will be populated here -->
+                <!-- Right column: Files list -->
+                <div style="display: flex; flex-direction: column;">
+                    <label style="margin-bottom: 10px; font-weight: bold;">Файлы для архивации:</label>
+                    <div id="archive-files-list" style="flex: 1; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f8f9fa;">
+                        <!-- Files list will be populated here -->
+                    </div>
                 </div>
             </div>
             <div style="text-align: right; margin-top: 20px;">
@@ -1382,6 +1384,52 @@
             <div style="text-align: right; margin-top: 20px;">
                 <button class="btn btn-secondary" onclick="closeDestinationModal()">Отмена</button>
                 <button class="btn btn-primary" id="destination-confirm-btn" onclick="confirmDestinationOperation()">Выполнить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scan Confirmation Modal -->
+    <div id="scan-confirm-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Подтверждение сканирования</h3>
+                <span class="close" onclick="closeScanConfirmModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <h4>Выбранные папки для сканирования:</h4>
+                    <div id="scan-folders-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #f8f9fa; border-radius: 4px;">
+                        <!-- Selected folders will be listed here -->
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #e8f4fd; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" id="scan-recursive-checkbox" checked style="width: 20px; height: 20px; cursor: pointer;">
+                        <div>
+                            <strong>Рекурсивное сканирование</strong>
+                            <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">
+                                Если включено, сканируются все подпапки. Если выключено, сканируется только верхний уровень выбранных папок.
+                            </p>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="scan-thread-count">Количество потоков:</label>
+                    <input type="number" id="scan-thread-count" min="1" max="32" value="8" style="width: 100px;">
+                </div>
+                
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="scan-calculate-crc32" checked>
+                        <span>Вычислять CRC32 для файлов</span>
+                    </label>
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeScanConfirmModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="confirmScanOperation()">🚀 Начать сканирование</button>
             </div>
         </div>
     </div>

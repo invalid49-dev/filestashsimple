@@ -1,6 +1,1881 @@
 {
   "scans": [
     {
+      "id": "1763804191385",
+      "startTime": "2025-11-22T09:36:31.385Z",
+      "endTime": "2025-11-22T09:36:31.901Z",
+      "duration": 516,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": true
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 451,
+      "totalFound": 451,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763803807540",
+      "startTime": "2025-11-22T09:30:07.540Z",
+      "endTime": "2025-11-22T09:30:08.803Z",
+      "duration": 1263,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Modeling",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Models - Katarina",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Aimori",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Video",
+          "recursive": true
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1359,
+      "totalFound": 1359,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763803748583",
+      "startTime": "2025-11-22T09:29:08.583Z",
+      "endTime": "2025-11-22T09:29:09.875Z",
+      "duration": 1292,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Modeling",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Models - Katarina",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Aimori",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Video",
+          "recursive": true
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1359,
+      "totalFound": 1359,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763803656495",
+      "startTime": "2025-11-22T09:27:36.495Z",
+      "endTime": "2025-11-22T09:27:37.323Z",
+      "duration": 828,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Modeling",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Models - Katarina",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Aimori",
+          "recursive": true
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 880,
+      "totalFound": 880,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763803619999",
+      "startTime": "2025-11-22T09:26:59.999Z",
+      "endTime": "2025-11-22T09:27:00.411Z",
+      "duration": 412,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Modeling",
+          "recursive": true
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 321,
+      "totalFound": 321,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763803602056",
+      "startTime": "2025-11-22T09:26:42.056Z",
+      "endTime": "2025-11-22T09:26:42.093Z",
+      "duration": 37,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Modeling",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763803568560",
+      "startTime": "2025-11-22T09:26:08.560Z",
+      "endTime": "2025-11-22T09:26:08.591Z",
+      "duration": 31,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763803058846",
+      "startTime": "2025-11-22T09:17:38.846Z",
+      "endTime": "2025-11-22T09:17:38.924Z",
+      "duration": 78,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Photo\\A\\Amelia Star",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": false,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763802969438",
+      "startTime": "2025-11-22T09:16:09.438Z",
+      "endTime": "2025-11-22T09:16:10.920Z",
+      "duration": 1482,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Photo\\U",
+          "recursive": false
+        },
+        {
+          "path": "P:\\Photo\\U\\Uknown model from ex.ua",
+          "recursive": false
+        },
+        {
+          "path": "P:\\Photo\\U\\Unknown Boosty Girl",
+          "recursive": false
+        },
+        {
+          "path": "P:\\Photo\\U\\Unknown Girl",
+          "recursive": false
+        },
+        {
+          "path": "P:\\Photo\\U\\Unknown model",
+          "recursive": false
+        },
+        {
+          "path": "P:\\Photo\\U\\Unsorted",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 2055,
+      "totalFound": 2055,
+      "calculateCrc32": false,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763802880143",
+      "startTime": "2025-11-22T09:14:40.143Z",
+      "endTime": "2025-11-22T09:14:40.198Z",
+      "duration": 55,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Photo\\A\\AdelK",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": false,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763802804247",
+      "startTime": "2025-11-22T09:13:24.247Z",
+      "endTime": "2025-11-22T09:13:24.284Z",
+      "duration": 37,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Photo\\A\\adel",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Photo\\A\\adel\\K",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Photo\\A\\adel\\K\\Black Style",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 13,
+      "totalFound": 13,
+      "calculateCrc32": false,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763802770511",
+      "startTime": "2025-11-22T09:12:50.511Z",
+      "endTime": "2025-11-22T09:12:50.760Z",
+      "duration": 249,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Photo\\A",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": false,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763802743230",
+      "startTime": "2025-11-22T09:12:23.230Z",
+      "endTime": "2025-11-22T09:12:23.339Z",
+      "duration": 109,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Modeling",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Modeling\\Gabby",
+          "recursive": false
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Modeling\\Mackenzie",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 323,
+      "totalFound": 323,
+      "calculateCrc32": false,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763802678949",
+      "startTime": "2025-11-22T09:11:18.949Z",
+      "endTime": "2025-11-22T09:11:18.977Z",
+      "duration": 28,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Modeling",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": false,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763802659950",
+      "startTime": "2025-11-22T09:10:59.950Z",
+      "endTime": "2025-11-22T09:10:59.979Z",
+      "duration": 29,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": false,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763802574789",
+      "startTime": "2025-11-22T09:09:34.789Z",
+      "endTime": "2025-11-22T09:09:34.929Z",
+      "duration": 140,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Video",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 463,
+      "totalFound": 463,
+      "calculateCrc32": false,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763802534417",
+      "startTime": "2025-11-22T09:08:54.417Z",
+      "endTime": "2025-11-22T09:08:54.452Z",
+      "duration": 35,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": false,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763802069806",
+      "startTime": "2025-11-22T09:01:09.806Z",
+      "endTime": "2025-11-22T09:05:20.624Z",
+      "duration": 250818,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Video",
+          "recursive": true
+        },
+        {
+          "path": "P:\\Test Data\\Video\\Alisa Model(amazing-models.com)",
+          "recursive": false
+        },
+        {
+          "path": "P:\\Test Data\\Photo\\Agency Modeling",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 19694,
+      "totalFound": 19694,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763801995062",
+      "startTime": "2025-11-22T08:59:55.062Z",
+      "endTime": "2025-11-22T09:00:24.298Z",
+      "duration": 29236,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data\\Photo\\Alayna (Model Elite)",
+          "recursive": false
+        },
+        {
+          "path": "P:\\Test Data\\Video\\Alisa Model(amazing-models.com)",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 16,
+      "totalFound": 16,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763801921557",
+      "startTime": "2025-11-22T08:58:41.557Z",
+      "endTime": "2025-11-22T08:59:09.145Z",
+      "duration": 27588,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763801220502",
+      "startTime": "2025-11-22T08:47:00.502Z",
+      "endTime": "2025-11-22T08:47:29.116Z",
+      "duration": 28614,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763801124312",
+      "startTime": "2025-11-22T08:45:24.312Z",
+      "endTime": "2025-11-22T08:45:53.037Z",
+      "duration": 28725,
+      "status": "completed",
+      "paths": [
+        {
+          "path": "P:\\Test Data",
+          "recursive": false
+        }
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763799152885",
+      "startTime": "2025-11-22T08:12:32.885Z",
+      "endTime": "2025-11-22T08:14:12.391Z",
+      "duration": 99506,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\D"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 9160,
+      "totalFound": 9160,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763797948303",
+      "startTime": "2025-11-22T07:52:28.303Z",
+      "endTime": "2025-11-22T08:06:29.940Z",
+      "duration": 841637,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\D_Verified\\Dream Models"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 39290,
+      "totalFound": 39290,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763441176301",
+      "startTime": "2025-11-18T04:46:16.301Z",
+      "endTime": "2025-11-18T04:52:32.196Z",
+      "duration": 375895,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\L\\Laceyteenmodel.com",
+        "P:\\Photo\\L\\Lana Model",
+        "P:\\Photo\\L\\Lane Model",
+        "P:\\Photo\\L\\Latin Angel",
+        "P:\\Photo\\L\\Laura Teen Model",
+        "P:\\Photo\\L\\Laurie Model",
+        "P:\\Photo\\L\\Leah Model",
+        "P:\\Photo\\L\\Lea Model",
+        "P:\\Photo\\L\\Lembouruine Studios"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 38450,
+      "totalFound": 38450,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763409326334",
+      "startTime": "2025-11-17T19:55:26.334Z",
+      "endTime": "2025-11-17T22:09:39.378Z",
+      "duration": 8053044,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\F\\Fashion Land Models"
+      ],
+      "threadCount": 14,
+      "filesProcessed": 443663,
+      "totalFound": 443663,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763408735779",
+      "startTime": "2025-11-17T19:45:35.779Z",
+      "endTime": "2025-11-17T19:49:52.062Z",
+      "duration": 256283,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\F\\Funny Agency",
+        "P:\\Photo\\F\\FunnyGirls.net"
+      ],
+      "threadCount": 14,
+      "filesProcessed": 25749,
+      "totalFound": 25749,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763408024861",
+      "startTime": "2025-11-17T19:33:44.861Z",
+      "endTime": "2025-11-17T19:40:16.948Z",
+      "duration": 392087,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\D_Verified\\Dream Models",
+        "P:\\Photo\\D_Verified\\Dreamgirl Celia",
+        "P:\\Photo\\D_Verified\\Dreammodel Franzi"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 21269,
+      "totalFound": 21269,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763407120720",
+      "startTime": "2025-11-17T19:18:40.720Z",
+      "endTime": "2025-11-17T19:32:25.753Z",
+      "duration": 825033,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\D_Verified\\Dolcemodels"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 46214,
+      "totalFound": 46214,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763406624038",
+      "startTime": "2025-11-17T19:10:24.038Z",
+      "endTime": "2025-11-17T19:16:39.107Z",
+      "duration": 375069,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\D_Verified\\DJ Models"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 35930,
+      "totalFound": 35930,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763405411903",
+      "startTime": "2025-11-17T18:50:11.903Z",
+      "endTime": "2025-11-17T19:04:50.095Z",
+      "duration": 878192,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\D_Verified\\Dolce Multi-Models",
+        "P:\\Photo\\D_Verified\\Dolly SuperModel",
+        "P:\\Photo\\D_Verified\\Dorie-model_",
+        "P:\\Photo\\D_Verified\\Dream Katia",
+        "P:\\Photo\\D_Verified\\Dream Model Julia"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 65315,
+      "totalFound": 65315,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763405067104",
+      "startTime": "2025-11-17T18:44:27.104Z",
+      "endTime": "2025-11-17T18:48:49.933Z",
+      "duration": 262829,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\D_Verified\\Dawn Model.com",
+        "P:\\Photo\\D_Verified\\Dawn-model.com(Another)",
+        "P:\\Photo\\D_Verified\\Delightful Models",
+        "P:\\Photo\\D_Verified\\Diana Nacova (see readme.txt)(битые файлы)",
+        "P:\\Photo\\D_Verified\\DmetryStar Angela(aka Madison)",
+        "P:\\Photo\\D_Verified\\Dmetrystar Anya",
+        "P:\\Photo\\D_Verified\\Dmetrystar Diana (aka Sage)",
+        "P:\\Photo\\D_Verified\\DmetryStar Milena (aka Sarah)"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 16031,
+      "totalFound": 16031,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763302861385",
+      "startTime": "2025-11-16T14:21:01.385Z",
+      "endTime": "2025-11-16T14:26:12.489Z",
+      "duration": 311104,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Q",
+        "P:\\Photo\\Q\\Quinn Model.com",
+        "P:\\Photo\\U",
+        "P:\\Photo\\V\\Valeria Model",
+        "P:\\Photo\\V\\Valerie model.com",
+        "P:\\Photo\\V\\Valerie(8teenies.com)",
+        "P:\\Photo\\V\\Vera Models",
+        "P:\\Photo\\V\\Veta Antonova (ex Dolly Supermodel)"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 32803,
+      "totalFound": 32803,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763300872753",
+      "startTime": "2025-11-16T13:47:52.753Z",
+      "endTime": "2025-11-16T14:02:19.033Z",
+      "duration": 866280,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\J",
+        "P:\\Photo\\J\\Jacqueline Model_com",
+        "P:\\Photo\\J\\Jamie-Model_com",
+        "P:\\Photo\\J\\Jana Model",
+        "P:\\Photo\\J\\Jana-Child-model_com",
+        "P:\\Photo\\J\\Jane Model",
+        "P:\\Photo\\J\\Jasmin Lovely Model",
+        "P:\\Photo\\J\\Jaycie-Model",
+        "P:\\Photo\\J\\Jennifer (MSP Digital)",
+        "P:\\Photo\\J\\Jenny",
+        "P:\\Photo\\J\\Jenny (XAM)",
+        "P:\\Photo\\J\\Jenny Star",
+        "P:\\Photo\\J\\Jessi Model_com",
+        "P:\\Photo\\J\\Jessi(Budding Beauties_com)",
+        "P:\\Photo\\J\\Jessy Sunshine",
+        "P:\\Photo\\J\\Jilian Model",
+        "P:\\Photo\\J\\Jodie-Model_com",
+        "P:\\Photo\\J\\Jojo model",
+        "P:\\Photo\\J\\Juliet Summer",
+        "P:\\Photo\\J\\Juliet-Model_com"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 126520,
+      "totalFound": 126520,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763300672166",
+      "startTime": "2025-11-16T13:44:32.166Z",
+      "endTime": "2025-11-16T13:45:19.135Z",
+      "duration": 46969,
+      "status": "completed",
+      "paths": [
+        "P:\\Doggy"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 2400,
+      "totalFound": 2400,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763299147789",
+      "startTime": "2025-11-16T13:19:07.789Z",
+      "endTime": "2025-11-16T13:33:37.386Z",
+      "duration": 869597,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Nice Ass",
+        "P:\\Photo\\Panties",
+        "P:\\Photo\\Smile Of a Child",
+        "P:\\Photo\\Vladmodels index 2014",
+        "P:\\Photo\\Wet Pussy",
+        "P:\\Photo\\Z",
+        "P:\\Photo\\Y"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 71527,
+      "totalFound": 71527,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763298298460",
+      "startTime": "2025-11-16T13:04:58.460Z",
+      "endTime": "2025-11-16T13:17:18.068Z",
+      "duration": 739608,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Kawaigirls"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 72234,
+      "totalFound": 72234,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763298236059",
+      "startTime": "2025-11-16T13:03:56.059Z",
+      "endTime": "2025-11-16T13:04:23.842Z",
+      "duration": 27783,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Fakes"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 369,
+      "totalFound": 369,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763297611710",
+      "startTime": "2025-11-16T12:53:31.710Z",
+      "endTime": "2025-11-16T13:02:48.107Z",
+      "duration": 556397,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\E_Verified",
+        "P:\\Photo\\E_Verified\\Elektra Child Model",
+        "P:\\Photo\\E_Verified\\Elena Star_net",
+        "P:\\Photo\\E_Verified\\Elizabeth (Florida Teen Models)",
+        "P:\\Photo\\E_Verified\\Ella (FameGirls_com)",
+        "P:\\Photo\\E_Verified\\Ella Model_com",
+        "P:\\Photo\\E_Verified\\Elona Private Candid Pics",
+        "P:\\Photo\\E_Verified\\Emberlee",
+        "P:\\Photo\\E_Verified\\Emilia (Casting Star)",
+        "P:\\Photo\\E_Verified\\Emiliya Model.com(Тут Повторы)",
+        "P:\\Photo\\E_Verified\\Emily child model",
+        "P:\\Photo\\E_Verified\\Emily-model_com",
+        "P:\\Photo\\E_Verified\\Emmie-Model.com",
+        "P:\\Photo\\E_Verified\\Eri",
+        "P:\\Photo\\E_Verified\\Erica Model",
+        "P:\\Photo\\E_Verified\\Erica-model.net",
+        "P:\\Photo\\E_Verified\\Esra-model.net",
+        "P:\\Photo\\E_Verified\\Eveline Model (Another)",
+        "P:\\Photo\\E_Verified\\Eveline-model_com",
+        "P:\\Photo\\E_Verified\\Evie Model",
+        "P:\\Photo\\E_Verified\\Evie-model.com",
+        "P:\\Photo\\E_Verified\\Evita Model.com"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 80136,
+      "totalFound": 80136,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763287864893",
+      "startTime": "2025-11-16T10:11:04.893Z",
+      "endTime": "2025-11-16T10:27:39.286Z",
+      "duration": 994393,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\F\\Farrah Model",
+        "P:\\Photo\\F\\Felicity Model",
+        "P:\\Photo\\F\\Fiona Model.com (Ex Lia Model)",
+        "P:\\Photo\\F\\Flower Models",
+        "P:\\Photo\\F\\Foxy-world.com",
+        "P:\\Photo\\F\\Freasternproduction.com"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 71817,
+      "totalFound": 71817,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763286769835",
+      "startTime": "2025-11-16T09:52:49.835Z",
+      "endTime": "2025-11-16T09:55:58.536Z",
+      "duration": 188701,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\D_Verified\\Daisy (sweet-girlies.net)",
+        "P:\\Photo\\D_Verified\\Daisy Model",
+        "P:\\Photo\\D_Verified\\Danei(Budding Beauties_)",
+        "P:\\Photo\\D_Verified\\Dana Model",
+        "P:\\Photo\\D_Verified\\Dana Model.com",
+        "P:\\Photo\\D_Verified\\Danika Model",
+        "P:\\Photo\\D_Verified\\Dasha Model",
+        "P:\\Photo\\D_Verified\\Dasha Models"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 18433,
+      "totalFound": 18433,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763224047536",
+      "startTime": "2025-11-15T16:27:27.536Z",
+      "endTime": "2025-11-15T16:52:27.368Z",
+      "duration": 1499832,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\K",
+        "P:\\Photo\\K\\Kali Model",
+        "P:\\Photo\\K\\Kamilla-model_com (prmodels_com)",
+        "P:\\Photo\\K\\Karen-model_com(Webemodel)",
+        "P:\\Photo\\K\\KarishaModel_com(ex Alina Balletstar)",
+        "P:\\Photo\\K\\Katarina Model",
+        "P:\\Photo\\K\\Kate model",
+        "P:\\Photo\\K\\Katia Hudima",
+        "P:\\Photo\\K\\Katie Model_com",
+        "P:\\Photo\\K\\Katrina Model",
+        "P:\\Photo\\K\\Katyo_com",
+        "P:\\Photo\\K\\Ketty dreams",
+        "P:\\Photo\\K\\Kim Model",
+        "P:\\Photo\\K\\Kimberly Model",
+        "P:\\Photo\\K\\Kimmy-model_com",
+        "P:\\Photo\\K\\Kimmy-model_com (Another)",
+        "P:\\Photo\\K\\Kitana Model",
+        "P:\\Photo\\K\\Kris Maurer",
+        "P:\\Photo\\K\\Kristi Blonde",
+        "P:\\Photo\\K\\Kristie Model_com",
+        "P:\\Photo\\K\\Kristina Soboleva",
+        "P:\\Photo\\K\\Ksusha",
+        "P:\\Photo\\K\\Kuku Model_com",
+        "P:\\Photo\\K\\Kylee Model_com",
+        "P:\\Photo\\K\\Kylee(Flower Studio)",
+        "P:\\Photo\\K\\Kyliechildmodel_com"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 150130,
+      "totalFound": 150130,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763223398087",
+      "startTime": "2025-11-15T16:16:38.087Z",
+      "endTime": "2025-11-15T16:21:08.466Z",
+      "duration": 270379,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\F\\Flower Models",
+        "P:\\Photo\\F\\Flower Models\\Alex",
+        "P:\\Photo\\F\\Flower Models\\Alex2",
+        "P:\\Photo\\F\\Flower Models\\Alex3",
+        "P:\\Photo\\F\\Flower Models\\Alex4",
+        "P:\\Photo\\F\\Flower Models\\Alex5",
+        "P:\\Photo\\F\\Flower Models\\Alex6",
+        "P:\\Photo\\F\\Flower Models\\Alex7",
+        "P:\\Photo\\F\\Flower Models\\Alex8",
+        "P:\\Photo\\F\\Flower Models\\Alex9",
+        "P:\\Photo\\F\\Flower Models\\Alisa",
+        "P:\\Photo\\F\\Flower Models\\Alisa2",
+        "P:\\Photo\\F\\Flower Models\\Alisa3",
+        "P:\\Photo\\F\\Flower Models\\Alisa4",
+        "P:\\Photo\\F\\Flower Models\\Alisa5",
+        "P:\\Photo\\F\\Flower Models\\Alisa6",
+        "P:\\Photo\\F\\Flower Models\\Alisa7",
+        "P:\\Photo\\F\\Flower Models\\Alisa8",
+        "P:\\Photo\\F\\Flower Models\\Alisa9",
+        "P:\\Photo\\F\\Flower Models\\Amely",
+        "P:\\Photo\\F\\Flower Models\\Amely_t",
+        "P:\\Photo\\F\\Flower Models\\Amely_t2",
+        "P:\\Photo\\F\\Flower Models\\Amely4",
+        "P:\\Photo\\F\\Flower Models\\Amely5",
+        "P:\\Photo\\F\\Flower Models\\Amili",
+        "P:\\Photo\\F\\Flower Models\\Amili2",
+        "P:\\Photo\\F\\Flower Models\\Amili3",
+        "P:\\Photo\\F\\Flower Models\\Amili4",
+        "P:\\Photo\\F\\Flower Models\\Ania",
+        "P:\\Photo\\F\\Flower Models\\Ania2",
+        "P:\\Photo\\F\\Flower Models\\Ania3",
+        "P:\\Photo\\F\\Flower Models\\Ania4",
+        "P:\\Photo\\F\\Flower Models\\Ania5",
+        "P:\\Photo\\F\\Flower Models\\Ania6",
+        "P:\\Photo\\F\\Flower Models\\Anita",
+        "P:\\Photo\\F\\Flower Models\\Anna1",
+        "P:\\Photo\\F\\Flower Models\\Anna2",
+        "P:\\Photo\\F\\Flower Models\\Anna3",
+        "P:\\Photo\\F\\Flower Models\\Anna4",
+        "P:\\Photo\\F\\Flower Models\\Anna5",
+        "P:\\Photo\\F\\Flower Models\\Arina",
+        "P:\\Photo\\F\\Flower Models\\Barbara",
+        "P:\\Photo\\F\\Flower Models\\Daira",
+        "P:\\Photo\\F\\Flower Models\\Daira2",
+        "P:\\Photo\\F\\Flower Models\\Daira3",
+        "P:\\Photo\\F\\Flower Models\\Dana",
+        "P:\\Photo\\F\\Flower Models\\Dana2",
+        "P:\\Photo\\F\\Flower Models\\Dana3",
+        "P:\\Photo\\F\\Flower Models\\Dasha1",
+        "P:\\Photo\\F\\Flower Models\\Ilonna",
+        "P:\\Photo\\F\\Flower Models\\Ilonna2",
+        "P:\\Photo\\F\\Flower Models\\Ilonna3",
+        "P:\\Photo\\F\\Flower Models\\Ilonna4",
+        "P:\\Photo\\F\\Flower Models\\Ilonna5",
+        "P:\\Photo\\F\\Flower Models\\Ilonna6",
+        "P:\\Photo\\F\\Flower Models\\Ilonna7",
+        "P:\\Photo\\F\\Flower Models\\Inga",
+        "P:\\Photo\\F\\Flower Models\\Ira1",
+        "P:\\Photo\\F\\Flower Models\\Ira2",
+        "P:\\Photo\\F\\Flower Models\\Irina",
+        "P:\\Photo\\F\\Flower Models\\Irina10",
+        "P:\\Photo\\F\\Flower Models\\Irina11",
+        "P:\\Photo\\F\\Flower Models\\Irina12",
+        "P:\\Photo\\F\\Flower Models\\Irina13",
+        "P:\\Photo\\F\\Flower Models\\Irina2",
+        "P:\\Photo\\F\\Flower Models\\Irina3",
+        "P:\\Photo\\F\\Flower Models\\Irina4",
+        "P:\\Photo\\F\\Flower Models\\Irina5",
+        "P:\\Photo\\F\\Flower Models\\Irina6",
+        "P:\\Photo\\F\\Flower Models\\Irina7",
+        "P:\\Photo\\F\\Flower Models\\Irina8",
+        "P:\\Photo\\F\\Flower Models\\Irina9",
+        "P:\\Photo\\F\\Flower Models\\Karina",
+        "P:\\Photo\\F\\Flower Models\\Karina10",
+        "P:\\Photo\\F\\Flower Models\\Karina11",
+        "P:\\Photo\\F\\Flower Models\\Karina2",
+        "P:\\Photo\\F\\Flower Models\\Karina3",
+        "P:\\Photo\\F\\Flower Models\\Karina4",
+        "P:\\Photo\\F\\Flower Models\\Karina5",
+        "P:\\Photo\\F\\Flower Models\\Karina6",
+        "P:\\Photo\\F\\Flower Models\\Karina7",
+        "P:\\Photo\\F\\Flower Models\\Karina8",
+        "P:\\Photo\\F\\Flower Models\\Karina9",
+        "P:\\Photo\\F\\Flower Models\\Kati",
+        "P:\\Photo\\F\\Flower Models\\Kati2",
+        "P:\\Photo\\F\\Flower Models\\Kati3",
+        "P:\\Photo\\F\\Flower Models\\Kati4",
+        "P:\\Photo\\F\\Flower Models\\Kati5",
+        "P:\\Photo\\F\\Flower Models\\Kati6",
+        "P:\\Photo\\F\\Flower Models\\Kati7",
+        "P:\\Photo\\F\\Flower Models\\Kati8",
+        "P:\\Photo\\F\\Flower Models\\Katrin",
+        "P:\\Photo\\F\\Flower Models\\Katrin2",
+        "P:\\Photo\\F\\Flower Models\\Kristina_newgod",
+        "P:\\Photo\\F\\Flower Models\\Lera",
+        "P:\\Photo\\F\\Flower Models\\Lera1",
+        "P:\\Photo\\F\\Flower Models\\Lera2",
+        "P:\\Photo\\F\\Flower Models\\Lera3",
+        "P:\\Photo\\F\\Flower Models\\Lera4",
+        "P:\\Photo\\F\\Flower Models\\Lera5",
+        "P:\\Photo\\F\\Flower Models\\Lera6",
+        "P:\\Photo\\F\\Flower Models\\Lina",
+        "P:\\Photo\\F\\Flower Models\\Linda",
+        "P:\\Photo\\F\\Flower Models\\Linda2",
+        "P:\\Photo\\F\\Flower Models\\Luba",
+        "P:\\Photo\\F\\Flower Models\\Luba1",
+        "P:\\Photo\\F\\Flower Models\\Luba2",
+        "P:\\Photo\\F\\Flower Models\\Luba3",
+        "P:\\Photo\\F\\Flower Models\\Luba4",
+        "P:\\Photo\\F\\Flower Models\\Luba5",
+        "P:\\Photo\\F\\Flower Models\\Luba6",
+        "P:\\Photo\\F\\Flower Models\\Luba7",
+        "P:\\Photo\\F\\Flower Models\\Malvina",
+        "P:\\Photo\\F\\Flower Models\\Malvina10",
+        "P:\\Photo\\F\\Flower Models\\Malvina11",
+        "P:\\Photo\\F\\Flower Models\\Malvina12",
+        "P:\\Photo\\F\\Flower Models\\Malvina13",
+        "P:\\Photo\\F\\Flower Models\\Malvina2",
+        "P:\\Photo\\F\\Flower Models\\Malvina3",
+        "P:\\Photo\\F\\Flower Models\\Malvina4",
+        "P:\\Photo\\F\\Flower Models\\Malvina5",
+        "P:\\Photo\\F\\Flower Models\\Malvina6",
+        "P:\\Photo\\F\\Flower Models\\Malvina7",
+        "P:\\Photo\\F\\Flower Models\\Malvina8",
+        "P:\\Photo\\F\\Flower Models\\Malvina9",
+        "P:\\Photo\\F\\Flower Models\\Marina",
+        "P:\\Photo\\F\\Flower Models\\Nadia",
+        "P:\\Photo\\F\\Flower Models\\Nadia2",
+        "P:\\Photo\\F\\Flower Models\\Nadia3",
+        "P:\\Photo\\F\\Flower Models\\Nadia4",
+        "P:\\Photo\\F\\Flower Models\\Nadia5",
+        "P:\\Photo\\F\\Flower Models\\Nadia6",
+        "P:\\Photo\\F\\Flower Models\\Nadia7",
+        "P:\\Photo\\F\\Flower Models\\Nadia8",
+        "P:\\Photo\\F\\Flower Models\\Nadia9",
+        "P:\\Photo\\F\\Flower Models\\Nasty",
+        "P:\\Photo\\F\\Flower Models\\Nata",
+        "P:\\Photo\\F\\Flower Models\\Nata2",
+        "P:\\Photo\\F\\Flower Models\\Natasha",
+        "P:\\Photo\\F\\Flower Models\\Natasha2",
+        "P:\\Photo\\F\\Flower Models\\Natasha3",
+        "P:\\Photo\\F\\Flower Models\\Natasha4",
+        "P:\\Photo\\F\\Flower Models\\Natasha5",
+        "P:\\Photo\\F\\Flower Models\\Natasha6",
+        "P:\\Photo\\F\\Flower Models\\Natasha7",
+        "P:\\Photo\\F\\Flower Models\\Natasha8",
+        "P:\\Photo\\F\\Flower Models\\Nika",
+        "P:\\Photo\\F\\Flower Models\\Nika2",
+        "P:\\Photo\\F\\Flower Models\\Nika3",
+        "P:\\Photo\\F\\Flower Models\\Nika4",
+        "P:\\Photo\\F\\Flower Models\\Nina",
+        "P:\\Photo\\F\\Flower Models\\Oksana",
+        "P:\\Photo\\F\\Flower Models\\Oksana1",
+        "P:\\Photo\\F\\Flower Models\\Olya",
+        "P:\\Photo\\F\\Flower Models\\Olya2",
+        "P:\\Photo\\F\\Flower Models\\Olya3",
+        "P:\\Photo\\F\\Flower Models\\Olya4",
+        "P:\\Photo\\F\\Flower Models\\Olya5",
+        "P:\\Photo\\F\\Flower Models\\Rita",
+        "P:\\Photo\\F\\Flower Models\\Rita2",
+        "P:\\Photo\\F\\Flower Models\\Rita3",
+        "P:\\Photo\\F\\Flower Models\\Rita4",
+        "P:\\Photo\\F\\Flower Models\\Rita5",
+        "P:\\Photo\\F\\Flower Models\\Rita6",
+        "P:\\Photo\\F\\Flower Models\\Rita7",
+        "P:\\Photo\\F\\Flower Models\\Rita8",
+        "P:\\Photo\\F\\Flower Models\\Rosa",
+        "P:\\Photo\\F\\Flower Models\\Rosa2",
+        "P:\\Photo\\F\\Flower Models\\Rosa3",
+        "P:\\Photo\\F\\Flower Models\\Sanni",
+        "P:\\Photo\\F\\Flower Models\\Sasha",
+        "P:\\Photo\\F\\Flower Models\\Sasha_alex",
+        "P:\\Photo\\F\\Flower Models\\Sasha2",
+        "P:\\Photo\\F\\Flower Models\\Sasha3",
+        "P:\\Photo\\F\\Flower Models\\Sasha4",
+        "P:\\Photo\\F\\Flower Models\\Sasha5",
+        "P:\\Photo\\F\\Flower Models\\Sasha6",
+        "P:\\Photo\\F\\Flower Models\\Sasha7",
+        "P:\\Photo\\F\\Flower Models\\Sasha8",
+        "P:\\Photo\\F\\Flower Models\\Sasha9",
+        "P:\\Photo\\F\\Flower Models\\Tanita",
+        "P:\\Photo\\F\\Flower Models\\Tanita2",
+        "P:\\Photo\\F\\Flower Models\\Tanita3",
+        "P:\\Photo\\F\\Flower Models\\Tanita4",
+        "P:\\Photo\\F\\Flower Models\\Tina",
+        "P:\\Photo\\F\\Flower Models\\Valery",
+        "P:\\Photo\\F\\Flower Models\\Vera",
+        "P:\\Photo\\F\\Flower Models\\Vera2",
+        "P:\\Photo\\F\\Flower Models\\Vera3",
+        "P:\\Photo\\F\\Flower Models\\Vera4",
+        "P:\\Photo\\F\\Flower Models\\Vera5",
+        "P:\\Photo\\F\\Flower Models\\Vera6",
+        "P:\\Photo\\F\\Flower Models\\Vera7",
+        "P:\\Photo\\F\\Flower Models\\Vera8",
+        "P:\\Photo\\F\\Flower Models\\Vera9",
+        "P:\\Photo\\F\\Flower Models\\Video",
+        "P:\\Photo\\F\\Flower Models\\Vlada",
+        "P:\\Photo\\F\\Flower Models\\Vlada2",
+        "P:\\Photo\\F\\Flower Models\\Yulya",
+        "P:\\Photo\\F\\Flower Models\\Yulya2",
+        "P:\\Photo\\F\\Flower Models\\Yulya3",
+        "P:\\Photo\\F\\Flower Models\\Yulya4",
+        "P:\\Photo\\F\\Flower Models\\Yulya5",
+        "P:\\Photo\\F\\Foxy-world.com"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 50306,
+      "totalFound": 50306,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763223314633",
+      "startTime": "2025-11-15T16:15:14.633Z",
+      "endTime": "2025-11-15T16:15:30.471Z",
+      "duration": 15838,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\F\\Fallen Angels",
+        "P:\\Photo\\F\\Fallen Angels\\bonus"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 138,
+      "totalFound": 138,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763222151126",
+      "startTime": "2025-11-15T15:55:51.126Z",
+      "endTime": "2025-11-15T16:12:02.317Z",
+      "duration": 971191,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\H",
+        "P:\\Photo\\H\\Haidee Model",
+        "P:\\Photo\\H\\Hailey Model (aka StarKid Sara)",
+        "P:\\Photo\\H\\Hanna World",
+        "P:\\Photo\\H\\HannaF(Daria Zorkina)Candid Pics",
+        "P:\\Photo\\H\\Hannah  (Model Elite)",
+        "P:\\Photo\\H\\Hasness Production 2010",
+        "P:\\Photo\\H\\Heather Model (SassyCat)",
+        "P:\\Photo\\H\\Heavenly Hannah",
+        "P:\\Photo\\H\\Heidy Pino",
+        "P:\\Photo\\H\\Helen Model",
+        "P:\\Photo\\H\\Helene (select-a-shoot_com)",
+        "P:\\Photo\\H\\Helga Model(Media Mynx)",
+        "P:\\Photo\\H\\HelloDaisy",
+        "P:\\Photo\\H\\Holly Model(Kid Models)",
+        "P:\\Photo\\H\\Hope (SouthernGlamourGirls_com)",
+        "P:\\Photo\\H\\Hope-Model_com"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 99369,
+      "totalFound": 99369,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763221642881",
+      "startTime": "2025-11-15T15:47:22.881Z",
+      "endTime": "2025-11-15T15:47:35.526Z",
+      "duration": 12645,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Из Сети\\[KISSa]"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 15,
+      "totalFound": 15,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": true
+    },
+    {
+      "id": "1763221577275",
+      "startTime": "2025-11-15T15:46:17.275Z",
+      "endTime": "2025-11-15T15:46:29.737Z",
+      "duration": 12462,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Из Сети\\[KISSa]"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 15,
+      "totalFound": 15,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": true
+    },
+    {
+      "id": "1762864819716",
+      "startTime": "2025-11-11T12:40:19.716Z",
+      "endTime": "2025-11-11T12:40:42.222Z",
+      "duration": 22506,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762864707172",
+      "startTime": "2025-11-11T12:38:27.172Z",
+      "endTime": "2025-11-11T12:38:49.998Z",
+      "duration": 22826,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Chemal Gegg"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762861450740",
+      "startTime": "2025-11-11T11:44:10.740Z",
+      "endTime": "2025-11-11T12:13:37.726Z",
+      "duration": 1766986,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Fakes",
+        "P:\\Photo\\G_Verified"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 79053,
+      "totalFound": 79053,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762858439852",
+      "startTime": "2025-11-11T10:53:59.852Z",
+      "endTime": "2025-11-11T11:03:51.339Z",
+      "duration": 591487,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Chemal Gegg\\Rachel-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Ricarda Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Romina-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Rose-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Roxy-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Sarah Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Selma & Friends - Julja",
+        "P:\\Photo\\C\\Chemal Gegg\\Selma And Friends - Sashka",
+        "P:\\Photo\\C\\Chemal Gegg\\selma-model_net - Amelia",
+        "P:\\Photo\\C\\Chemal Gegg\\Sonja-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Sweet-Irina_de",
+        "P:\\Photo\\C\\Chemal Gegg\\Sweet-Susanna_de",
+        "P:\\Photo\\C\\Chemal Gegg\\Tanja-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Tasha-Model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Tessa Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Teddy model",
+        "P:\\Photo\\C\\Chemal Gegg\\Vicka (germanymodels_de)",
+        "P:\\Photo\\C\\Chemal Gegg\\Zoe Model(sweet-girlies_net)",
+        "P:\\Photo\\C\\Chemal Gegg\\Zuzka Model"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 46911,
+      "totalFound": 46911,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762857085078",
+      "startTime": "2025-11-11T10:31:25.078Z",
+      "endTime": "2025-11-11T10:52:52.327Z",
+      "duration": 1287249,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Chemal Gegg\\Jackie",
+        "P:\\Photo\\C\\Chemal Gegg\\Jade Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Jamilla-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Jasmina-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Jenny-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Julia Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Julie(sweet-girlies_net)",
+        "P:\\Photo\\C\\Chemal Gegg\\Katja-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Kelly Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Kristin Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Kyra-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Lacy-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Lara Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Laura (casting-star_net)",
+        "P:\\Photo\\C\\Chemal Gegg\\Lea-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Leona-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Linda Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Lisa Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Lovely Carry",
+        "P:\\Photo\\C\\Chemal Gegg\\Lovely Elaine(Не полные сеты все)",
+        "P:\\Photo\\C\\Chemal Gegg\\Lovely Ginger_com",
+        "P:\\Photo\\C\\Chemal Gegg\\Lovely-Tamara_com (Vika model)",
+        "P:\\Photo\\C\\Chemal Gegg\\Luana-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Malina-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Maria-at-home_com",
+        "P:\\Photo\\C\\Chemal Gegg\\Marilou-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Marsha-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Masha-Model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Maxi",
+        "P:\\Photo\\C\\Chemal Gegg\\Maxine Model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Maya",
+        "P:\\Photo\\C\\Chemal Gegg\\Mia Model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Mona-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Naoke Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Nicky Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Olga at home_com",
+        "P:\\Photo\\C\\Chemal Gegg\\Olina-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Paris-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Pearl-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Pia Model"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 112698,
+      "totalFound": 112698,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762856447570",
+      "startTime": "2025-11-11T10:20:47.570Z",
+      "endTime": "2025-11-11T10:29:54.638Z",
+      "duration": 547068,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Alexa",
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Alla",
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Katka",
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Lena",
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Mila",
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Roxana",
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Nastya",
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Sveta",
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Xenia",
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Vera",
+        "P:\\Photo\\C\\Chemal Gegg\\Fabulous Zara",
+        "P:\\Photo\\C\\Chemal Gegg\\Felizia-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Flora-Model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\FridaAndCrystal_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Gina-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Grace model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Grazia-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Ina-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Inez Model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Isabel (Sweet Girlies_net)"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 40933,
+      "totalFound": 40933,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762855871221",
+      "startTime": "2025-11-11T10:11:11.221Z",
+      "endTime": "2025-11-11T10:19:56.856Z",
+      "duration": 525635,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Chemal Gegg\\Carol-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Charly-Model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Claire-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Cleo-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Cosma Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Daniela Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Darla Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Dasha Model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Dasha(starlight-girls_net)",
+        "P:\\Photo\\C\\Chemal Gegg\\Diane-Model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Diane(sweet-girlies_net)",
+        "P:\\Photo\\C\\Chemal Gegg\\Dreamgirl Hannah",
+        "P:\\Photo\\C\\Chemal Gegg\\Dreammodel-Julia_de",
+        "P:\\Photo\\C\\Chemal Gegg\\Dreammodel-Lisa_de",
+        "P:\\Photo\\C\\Chemal Gegg\\Elisa-star_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Elsa Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Emily -model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Estelle",
+        "P:\\Photo\\C\\Chemal Gegg\\Eva Model_net"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 48766,
+      "totalFound": 48766,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762854642081",
+      "startTime": "2025-11-11T09:50:42.081Z",
+      "endTime": "2025-11-11T09:54:16.383Z",
+      "duration": 214302,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Chemal Gegg\\Bea-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Beautifullnancy_de",
+        "P:\\Photo\\C\\Chemal Gegg\\Bianca Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Candy-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Carla Model",
+        "P:\\Photo\\C\\Chemal Gegg\\CarmenStar_net"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 15281,
+      "totalFound": 15281,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762853784817",
+      "startTime": "2025-11-11T09:36:24.817Z",
+      "endTime": "2025-11-11T09:39:20.276Z",
+      "duration": 175459,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Chemal Gegg\\Zuzka Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Zoe Model(sweet-girlies_net)",
+        "P:\\Photo\\C\\Chemal Gegg\\Tessa Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Vicka (germanymodels_de)",
+        "P:\\Photo\\C\\Chemal Gegg\\Teddy model",
+        "P:\\Photo\\C\\Chemal Gegg\\Tasha-Model_net"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 19224,
+      "totalFound": 19224,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762853345842",
+      "startTime": "2025-11-11T09:29:05.842Z",
+      "endTime": "2025-11-11T09:35:18.772Z",
+      "duration": 372930,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Chemal Gegg\\Abby-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Aida Model",
+        "P:\\Photo\\C\\Chemal Gegg\\Alex-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Alissa-model_net",
+        "P:\\Photo\\C\\Chemal Gegg\\Amelia Star",
+        "P:\\Photo\\C\\Chemal Gegg\\Anna Model"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 31573,
+      "totalFound": 31573,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762849548958",
+      "startTime": "2025-11-11T08:25:48.958Z",
+      "endTime": "2025-11-11T09:23:41.027Z",
+      "duration": 3472069,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Candydoll.TV"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 154842,
+      "totalFound": 154842,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762849207205",
+      "startTime": "2025-11-11T08:20:07.205Z",
+      "endTime": "2025-11-11T08:24:32.700Z",
+      "duration": 265495,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Custom Teens",
+        "P:\\Photo\\C\\Cute Alina.com",
+        "P:\\Photo\\C\\Cute Anna.com",
+        "P:\\Photo\\C\\Cute Fiona",
+        "P:\\Photo\\C\\Cute Juliet.com",
+        "P:\\Photo\\C\\Cute Monika",
+        "P:\\Photo\\C\\Cute-Katia.com"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 14108,
+      "totalFound": 14108,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762848685349",
+      "startTime": "2025-11-11T08:11:25.349Z",
+      "endTime": "2025-11-11T08:11:37.703Z",
+      "duration": 12354,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Z"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762848558291",
+      "startTime": "2025-11-11T08:09:18.291Z",
+      "endTime": "2025-11-11T08:10:17.441Z",
+      "duration": 59150,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Z\\Zoe model"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 7342,
+      "totalFound": 7342,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762848358907",
+      "startTime": "2025-11-11T08:05:58.907Z",
+      "endTime": "2025-11-11T08:08:07.158Z",
+      "duration": 128251,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\O\\Ovela Model",
+        "P:\\Photo\\O"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 19716,
+      "totalFound": 19716,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762847927322",
+      "startTime": "2025-11-11T07:58:47.322Z",
+      "endTime": "2025-11-11T08:03:01.929Z",
+      "duration": 254607,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\I",
+        "P:\\Photo\\I\\In-fashion.net",
+        "P:\\Photo\\I\\Inna Model",
+        "P:\\Photo\\I\\Inna Model(maxmodels.net)",
+        "P:\\Photo\\I\\Ivy (Shadowland)"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 28133,
+      "totalFound": 28133,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762847851200",
+      "startTime": "2025-11-11T07:57:31.200Z",
+      "endTime": "2025-11-11T07:57:38.682Z",
+      "duration": 7482,
+      "status": "cancelled",
+      "paths": [
+        "P:\\Photo\\I"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1653,
+      "totalFound": 14069,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": true,
+      "isRescan": false
+    },
+    {
+      "id": "1762847851200",
+      "startTime": "2025-11-11T07:57:31.200Z",
+      "endTime": "2025-11-11T07:57:38.682Z",
+      "duration": 7482,
+      "status": "cancelled",
+      "paths": [
+        "P:\\Photo\\I"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1653,
+      "totalFound": 14069,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": true
+    },
+    {
+      "id": "1762847673422",
+      "startTime": "2025-11-11T07:54:33.422Z",
+      "endTime": "2025-11-11T07:55:46.454Z",
+      "duration": 73032,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\I\\Inna Model"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 5926,
+      "totalFound": 5926,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762846809305",
+      "startTime": "2025-11-11T07:40:09.305Z",
+      "endTime": "2025-11-11T07:44:12.340Z",
+      "duration": 243035,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\I\\In-fashion.net",
+        "P:\\Photo\\I\\Inna Model(maxmodels.net)",
+        "P:\\Photo\\I\\Ivy (Shadowland)"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 8138,
+      "totalFound": 8138,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762845141116",
+      "startTime": "2025-11-11T07:12:21.116Z",
+      "endTime": "2025-11-11T07:32:54.653Z",
+      "duration": 1233537,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\All Ls Land Torrents",
+        "P:\\Photo\\C\\Cloey Model",
+        "P:\\Photo\\C\\Connie-model.com",
+        "P:\\Photo\\C\\Crazy-models.com",
+        "P:\\Photo\\C\\Corinne Model",
+        "P:\\Photo\\C\\Crystal Model",
+        "P:\\Photo\\C\\Curt Newberry Studios"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 149557,
+      "totalFound": 149557,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762844193502",
+      "startTime": "2025-11-11T06:56:33.502Z",
+      "endTime": "2025-11-11T07:11:18.382Z",
+      "duration": 884880,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\ChiChi (maxwels-angels.net)",
+        "P:\\Photo\\C\\Child Modeling Agency",
+        "P:\\Photo\\C\\Chloe Grace Moretz Collection",
+        "P:\\Photo\\C\\Chloe Model.tv",
+        "P:\\Photo\\C\\Chrissy Childmodel (another)",
+        "P:\\Photo\\C\\Chrissy Childmodel.com",
+        "P:\\Photo\\C\\Ciarra-Model.com",
+        "P:\\Photo\\C\\Cinderella Girl"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 67191,
+      "totalFound": 67191,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762843873445",
+      "startTime": "2025-11-11T06:51:13.445Z",
+      "endTime": "2025-11-11T06:55:51.793Z",
+      "duration": 278348,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\C\\Cara Model.com",
+        "P:\\Photo\\C\\Carmen Model",
+        "P:\\Photo\\C\\Caroline Child Model (MSP Digital)",
+        "P:\\Photo\\C\\Catherine(BModels.Biz)",
+        "P:\\Photo\\C\\Chagall Model.net",
+        "P:\\Photo\\C\\Charming Models",
+        "P:\\Photo\\C\\Cheerful Agency",
+        "P:\\Photo\\C\\Chelda-Model.com"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 27050,
+      "totalFound": 27050,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1762791566731",
+      "startTime": "2025-11-10T16:19:26.731Z",
+      "endTime": "2025-11-10T16:50:02.273Z",
+      "duration": 1835542,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\____LS MODEL INDEX",
+        "P:\\Photo\\B_Verified",
+        "P:\\Photo\\B_Verified\\Bailey Model",
+        "P:\\Photo\\B_Verified\\Bambi Model",
+        "P:\\Photo\\B_Verified\\Bambina Teen",
+        "P:\\Photo\\B_Verified\\Barbie Model",
+        "P:\\Photo\\B_Verified\\Barby Models",
+        "P:\\Photo\\B_Verified\\Beautifullnancy.de",
+        "P:\\Photo\\B_Verified\\Becca Model.com",
+        "P:\\Photo\\B_Verified\\BelindaPlay.com",
+        "P:\\Photo\\B_Verified\\Bella Model",
+        "P:\\Photo\\B_Verified\\Blakely Model",
+        "P:\\Photo\\B_Verified\\Bluejeanne.com",
+        "P:\\Photo\\B_Verified\\Bobbie model.com",
+        "P:\\Photo\\B_Verified\\Bonita Model",
+        "P:\\Photo\\B_Verified\\Bonita Model .Another",
+        "P:\\Photo\\B_Verified\\Brandy model.com",
+        "P:\\Photo\\B_Verified\\Breeze Model",
+        "P:\\Photo\\B_Verified\\Brima Models",
+        "P:\\Photo\\B_Verified\\Budding Beauties",
+        "P:\\Photo\\B_Verified\\Bunny Model"
+      ],
+      "threadCount": 16,
+      "filesProcessed": 180075,
+      "totalFound": 180075,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
       "id": "1762788820748",
       "startTime": "2025-11-10T15:33:40.748Z",
       "endTime": "2025-11-10T15:35:21.476Z",

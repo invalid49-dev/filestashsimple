@@ -8,11 +8,40 @@ const crypto = require('crypto');
 const archiver = require('archiver');
 const net = require('net');
 const open = require('open');
+const os = require('os');
 const iconv = require('iconv-lite');
+const { OptimizedDatabaseCache } = require('./optimized-cache');
+const { 
+    config, 
+    printConfiguration, 
+    useOptimizedCache,
+    getOptimizedCacheOptions 
+} = require('./config');
+const { createArchiveWithProgress } = require('./archive-with-progress');
+const ArchiverManager = require('./archiver-manager');
+const {
+    dbQuery,
+    dbGet,
+    dbRun,
+    batchLoadByIds,
+    batchLoadByPaths,
+    batchDeleteByIds,
+    batchDeleteByPaths,
+    batchInsertOrUpdate,
+    getCount,
+    checkExistenceByIds,
+    checkExistenceByPaths,
+    optimizeIndexes,
+    analyzeDatabase,
+    getDatabaseStats,
+    queryWithRetry
+} = require('./db-utils');
 
+// Print configuration on startup
+printConfiguration(config);
 
 const app = express();
-let PORT = 3000;
+let PORT = config.port;
 
 // Middleware
 app.use(cors());
@@ -21,6 +50,9 @@ app.use(express.static('public'));
 
 // Initialize SQLite database
 const db = new sqlite3.Database('./filestash.db');
+
+// Initialize Archiver Manager
+const archiverManager = new ArchiverManager();
 
 // Simple LRU Cache implementation for query results
 class LRUCache {
@@ -112,8 +144,8 @@ class LRUCache {
     }
 }
 
-// Initialize query cache
-const queryCache = new LRUCache(100 * 1024 * 1024); // 100MB cache
+// Initialize query cache with configured size
+const queryCache = config.enableQueryCache ? new LRUCache(config.queryCacheSize) : null;
 
 // In-memory database cache
 class DatabaseCache {
@@ -142,7 +174,7 @@ class DatabaseCache {
         const startTime = Date.now();
         
         this.loadPromise = new Promise((resolve, reject) => {
-            db.all('SELECT * FROM files', [], (err, rows) => {
+            db.all('SELECT * FROM files WHERE (is_dummy IS NULL OR is_dummy = 0)', [], (err, rows) => {
                 if (err) {
                     console.error('❌ Failed to load database into memory:', err);
                     this.isLoading = false;
@@ -189,7 +221,9 @@ class DatabaseCache {
         this.loadPromise = null;
         
         // Также очищаем query cache
-        queryCache.clear();
+        if (queryCache) {
+            queryCache.clear();
+        }
     }
     
     async reload() {
@@ -293,57 +327,263 @@ class DatabaseCache {
 // Initialize database cache
 const dbCache = new DatabaseCache();
 
-// Helper function to invalidate caches after database modifications
-async function invalidateDatabaseCaches() {
-    queryCache.invalidatePattern('^tree:');
-    console.log('🔄 Reloading database cache after modification...');
-    await dbCache.reload();
-    console.log('✅ Database cache reloaded');
+// Initialize optimized database cache using configuration
+const optimizedCache = new OptimizedDatabaseCache('./filestash.db', getOptimizedCacheOptions(config));
+
+// Helper function to check if optimized cache should be used
+const USE_OPTIMIZED_CACHE = useOptimizedCache(config);
+
+// Track which cache is currently active (for migration/rollback)
+let activeCacheType = USE_OPTIMIZED_CACHE ? 'optimized' : 'legacy';
+let activeCacheLoadFailed = false;
+
+// Helper function to get active cache
+function getActiveCache() {
+    return activeCacheType === 'optimized' ? optimizedCache : dbCache;
 }
 
-// Create tables with optimizations
-db.serialize(() => {
-    // Optimize SQLite for performance
-    db.run('PRAGMA journal_mode = WAL');
-    db.run('PRAGMA synchronous = NORMAL');
-    db.run('PRAGMA cache_size = 10000');
-    db.run('PRAGMA temp_store = MEMORY');
+// Helper function to switch cache strategy at runtime
+async function switchCacheStrategy(strategy) {
+    console.log(`🔄 Switching cache strategy to: ${strategy}`);
     
-    db.run(`CREATE TABLE IF NOT EXISTS files (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        full_path TEXT UNIQUE,
-        directory TEXT,
-        filename TEXT,
-        extension TEXT,
-        size INTEGER,
-        created_time TEXT,
-        modified_time TEXT,
-        is_directory INTEGER,
-        attributes TEXT,
-        crc32 TEXT
-    )`);
+    const previousStrategy = activeCacheType;
     
-    // Create indexes for better query performance
-    db.run('CREATE INDEX IF NOT EXISTS idx_filename ON files(filename)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_directory ON files(directory)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_extension ON files(extension)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_size ON files(size)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_is_directory ON files(is_directory)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_crc32 ON files(crc32)');
+    try {
+        if (strategy === 'optimized') {
+            // Switch to optimized cache
+            if (!optimizedCache.isLoaded) {
+                await optimizedCache.load();
+            }
+            activeCacheType = 'optimized';
+            activeCacheLoadFailed = false;
+            console.log('✅ Successfully switched to optimized cache');
+        } else if (strategy === 'legacy' || strategy === 'full') {
+            // Switch to legacy cache
+            if (!dbCache.isLoaded) {
+                await dbCache.loadFromDatabase();
+            }
+            activeCacheType = 'legacy';
+            activeCacheLoadFailed = false;
+            console.log('✅ Successfully switched to legacy cache');
+        } else {
+            throw new Error(`Unknown cache strategy: ${strategy}`);
+        }
+        
+        return { success: true, previousStrategy, currentStrategy: activeCacheType };
+        
+    } catch (error) {
+        console.error(`❌ Failed to switch to ${strategy} cache:`, error);
+        
+        // Rollback to previous strategy
+        activeCacheType = previousStrategy;
+        
+        throw error;
+    }
+}
+
+// Helper function to attempt cache load with automatic fallback
+async function loadCacheWithFallback() {
+    console.log(`🚀 Attempting to load ${activeCacheType} cache...`);
     
-    // Composite indexes for lazy loading optimization
-    db.run('CREATE INDEX IF NOT EXISTS idx_directory_filename ON files(directory, is_directory DESC, filename ASC)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_full_path_prefix ON files(full_path)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_parent_count ON files(directory, is_directory)');
+    try {
+        if (activeCacheType === 'optimized') {
+            await optimizedCache.load();
+            console.log('✅ OptimizedDatabaseCache loaded successfully');
+            activeCacheLoadFailed = false;
+            return { success: true, cacheType: 'optimized' };
+        } else {
+            await dbCache.loadFromDatabase();
+            console.log('✅ Legacy DatabaseCache loaded successfully');
+            activeCacheLoadFailed = false;
+            return { success: true, cacheType: 'legacy' };
+        }
+    } catch (error) {
+        console.error(`❌ Failed to load ${activeCacheType} cache:`, error);
+        activeCacheLoadFailed = true;
+        
+        // Attempt fallback to alternative cache
+        const fallbackType = activeCacheType === 'optimized' ? 'legacy' : 'optimized';
+        console.log(`⚠️  Attempting fallback to ${fallbackType} cache...`);
+        
+        try {
+            if (fallbackType === 'legacy') {
+                await dbCache.loadFromDatabase();
+                activeCacheType = 'legacy';
+                activeCacheLoadFailed = false;
+                console.log('✅ Fallback to legacy cache successful');
+                return { success: true, cacheType: 'legacy', fallback: true };
+            } else {
+                await optimizedCache.load();
+                activeCacheType = 'optimized';
+                activeCacheLoadFailed = false;
+                console.log('✅ Fallback to optimized cache successful');
+                return { success: true, cacheType: 'optimized', fallback: true };
+            }
+        } catch (fallbackError) {
+            console.error(`❌ Fallback to ${fallbackType} cache also failed:`, fallbackError);
+            activeCacheLoadFailed = true;
+            return { 
+                success: false, 
+                error: error.message, 
+                fallbackError: fallbackError.message 
+            };
+        }
+    }
+}
+
+// Helper function to invalidate caches after database modifications
+// Supports both full reload and selective invalidation
+async function invalidateDatabaseCaches(options = {}) {
+    const { paths = null, directories = null, fullReload = true } = options;
     
-    console.log('✅ Database indexes created/verified');
+    // Always invalidate query cache patterns
+    if (queryCache) {
+        queryCache.invalidatePattern('^tree:');
+    }
     
-    // Load database into memory cache after initialization
-    dbCache.loadFromDatabase().then(() => {
-        console.log('✅ Database cache initialized and ready');
-    }).catch(err => {
-        console.error('❌ Failed to initialize database cache:', err);
+    if (USE_OPTIMIZED_CACHE) {
+        // Use selective invalidation if paths or directories are provided
+        if (!fullReload && (paths || directories)) {
+            console.log('🔄 Selectively invalidating cache entries...');
+            
+            if (paths && Array.isArray(paths) && paths.length > 0) {
+                optimizedCache.invalidatePaths(paths);
+            }
+            
+            if (directories && Array.isArray(directories) && directories.length > 0) {
+                optimizedCache.invalidateDirectories(directories);
+            }
+            
+            console.log('✅ Selective cache invalidation completed');
+        } else {
+            // Full reload for major changes
+            console.log('🔄 Reloading database cache after modification...');
+            await optimizedCache.reload();
+            console.log('✅ Database cache reloaded');
+        }
+    } else {
+        // Legacy cache always does full reload
+        console.log('🔄 Reloading database cache after modification...');
+        await dbCache.reload();
+        console.log('✅ Database cache reloaded');
+    }
+}
+
+// Initialize database and start server
+async function initializeAndStart() {
+    return new Promise((resolve, reject) => {
+        db.serialize(async () => {
+            try {
+                console.log('🔧 Initializing database...');
+                
+                // Optimize SQLite for performance
+                db.run('PRAGMA journal_mode = WAL');
+                db.run('PRAGMA synchronous = NORMAL');
+                db.run('PRAGMA cache_size = 10000');
+                db.run('PRAGMA temp_store = MEMORY');
+                
+                // Create tables
+                await new Promise((res, rej) => {
+                    db.run(`CREATE TABLE IF NOT EXISTS files (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        full_path TEXT UNIQUE,
+                        directory TEXT,
+                        filename TEXT,
+                        extension TEXT,
+                        size INTEGER,
+                        created_time TEXT,
+                        modified_time TEXT,
+                        is_directory INTEGER,
+                        attributes TEXT,
+                        crc32 TEXT,
+                        is_dummy INTEGER DEFAULT 0
+                    )`, (err) => {
+                        if (err) rej(err);
+                        else res();
+                    });
+                });
+                
+                // Add is_dummy column if it doesn't exist (for existing databases)
+                await new Promise((res) => {
+                    db.run(`ALTER TABLE files ADD COLUMN is_dummy INTEGER DEFAULT 0`, (err) => {
+                        if (err && !err.message.includes('duplicate column')) {
+                            console.error('⚠️  Error adding is_dummy column:', err.message);
+                        }
+                        res(); // Continue even if column already exists
+                    });
+                });
+                
+                console.log('✅ Database tables initialized');
+                
+                // Use optimized index creation from db-utils
+                try {
+                    console.log('🔧 Optimizing database indexes...');
+                    await optimizeIndexes(db);
+                    
+                    // Small delay to ensure indexes are fully created
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // Analyze database for query optimization (with retry logic)
+                    await analyzeDatabase(db);
+                    console.log('✅ Database optimization complete');
+                } catch (error) {
+                    console.error('❌ Failed to optimize database:', error);
+                }
+                
+                // Load database into memory cache after initialization with automatic fallback
+                console.log(`🚀 Cache Strategy Selected: ${activeCacheType}`);
+                console.log(`   Configuration: CACHE_STRATEGY=${config.cacheStrategy}`);
+                
+                const result = await loadCacheWithFallback();
+                
+                if (result.success) {
+                    if (result.fallback) {
+                        console.log(`⚠️  Cache loaded with fallback to ${result.cacheType}`);
+                        console.log(`   Original strategy (${USE_OPTIMIZED_CACHE ? 'optimized' : 'legacy'}) failed`);
+                    } else {
+                        console.log(`✅ Cache initialized successfully: ${result.cacheType}`);
+                    }
+                    
+                    // Initialize and detect archivers
+                    console.log('🔧 Detecting available archivers...');
+                    try {
+                        await archiverManager.detectArchivers();
+                        await archiverManager.logDetectedArchivers();
+                        
+                        const supportedFormats = await archiverManager.getSupportedFormats();
+                        if (supportedFormats.length === 0) {
+                            console.log('⚠️  Warning: No archivers detected. Archive creation will not be available.');
+                            console.log('   To enable archiving, install 7-Zip or WinRAR in the bin directory.');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error detecting archivers:', error.message);
+                        console.log('⚠️  Archive creation may not work properly.');
+                    }
+                    
+                    // Start server only after cache is fully loaded
+                    console.log('🚀 All components initialized, starting server...');
+                    await startServer();
+                    resolve();
+                    
+                } else {
+                    console.error('❌ All cache initialization attempts failed');
+                    console.error(`   Primary error: ${result.error}`);
+                    console.error(`   Fallback error: ${result.fallbackError}`);
+                    console.error('⚠️  Cannot start server without cache');
+                    reject(new Error('Cache initialization failed'));
+                }
+            } catch (err) {
+                console.error('❌ Unexpected error during initialization:', err);
+                reject(err);
+            }
+        });
     });
+}
+
+// Start initialization
+initializeAndStart().catch(err => {
+    console.error('❌ Failed to initialize application:', err);
+    process.exit(1);
 });
 
 // Scan history management functions
@@ -511,6 +751,7 @@ function calculateCRC32(filePath) {
 }
 
 // Build hierarchical tree structure from flat file list
+// Optimized version that works with IndexCache for minimal memory usage
 function buildFileTree(files) {
     const tree = {};
     const pathSeparator = process.platform === 'win32' ? '\\' : '/';
@@ -612,6 +853,105 @@ function buildFileTree(files) {
     return tree;
 }
 
+// Build tree structure using IndexCache (optimized for memory)
+// Only loads minimal metadata, full details loaded on demand
+async function buildFileTreeOptimized(directory = null) {
+    if (!optimizedCache.isLoaded) {
+        throw new Error('OptimizedCache not loaded');
+    }
+    
+    // Get children IDs from IndexCache (fast, in-memory)
+    const childrenIds = optimizedCache.getChildrenIds(directory || '');
+    
+    if (childrenIds.size === 0) {
+        return [];
+    }
+    
+    // Batch load full data for direct children only
+    const children = await optimizedCache.getFullDataBatch(Array.from(childrenIds));
+    
+    // Build tree nodes with lazy loading support
+    return children.map(file => {
+        // Check if directory has children (using IndexCache, no DB query)
+        const hasChildren = file.is_directory === 1 && 
+            optimizedCache.getChildrenIds(file.full_path).size > 0;
+        
+        // Check if file exists on disk
+        let existsOnDisk = false;
+        try {
+            existsOnDisk = fs.existsSync(file.full_path);
+        } catch (error) {
+            existsOnDisk = false;
+        }
+        
+        return {
+            id: file.id,
+            path: file.full_path,
+            name: file.filename,
+            isDirectory: file.is_directory === 1,
+            hasChildren: hasChildren,
+            size: file.size,
+            extension: file.extension,
+            createdTime: file.created_time,
+            modifiedTime: file.modified_time,
+            crc32: file.crc32,
+            existsOnDisk: existsOnDisk,
+            inDatabase: true,
+            // Lazy loading: children loaded on demand
+            children: null
+        };
+    });
+}
+
+// Get children for a specific directory using optimized cache
+// Returns only IDs for lazy loading
+function getChildrenIdsOptimized(directory) {
+    if (!optimizedCache.isLoaded) {
+        return new Set();
+    }
+    
+    return optimizedCache.getChildrenIds(directory || '');
+}
+
+// Batch load tree nodes with full details
+// Efficiently loads multiple nodes at once using optimized cache
+async function batchLoadTreeNodes(nodeIds) {
+    if (!optimizedCache.isLoaded) {
+        throw new Error('OptimizedCache not loaded');
+    }
+    
+    // Batch load full data for all requested nodes
+    const nodes = await optimizedCache.getFullDataBatch(nodeIds);
+    
+    // Transform to tree node format
+    return nodes.map(file => {
+        const hasChildren = file.is_directory === 1 && 
+            optimizedCache.getChildrenIds(file.full_path).size > 0;
+        
+        let existsOnDisk = false;
+        try {
+            existsOnDisk = fs.existsSync(file.full_path);
+        } catch (error) {
+            existsOnDisk = false;
+        }
+        
+        return {
+            id: file.id,
+            path: file.full_path,
+            name: file.filename,
+            isDirectory: file.is_directory === 1,
+            hasChildren: hasChildren,
+            size: file.size,
+            extension: file.extension,
+            createdTime: file.created_time,
+            modifiedTime: file.modified_time,
+            crc32: file.crc32,
+            existsOnDisk: existsOnDisk,
+            inDatabase: true
+        };
+    });
+}
+
 // Get available drives (Windows specific)
 function getAvailableDrives() {
     const drives = [];
@@ -633,62 +973,58 @@ function getAvailableDrives() {
 
 // Helper function to collect all paths for rescan (including nested items)
 async function collectRescanPaths(selectedPaths) {
-    return new Promise((resolve, reject) => {
-        const allPaths = new Set();
-        let completed = 0;
-        
-        if (selectedPaths.length === 0) {
-            return resolve([]);
-        }
-        
-        selectedPaths.forEach(selectedPath => {
-            // Query database for all records matching this path (exact match or nested)
-            const query = `
-                SELECT full_path 
-                FROM files 
-                WHERE full_path = ? OR full_path LIKE ?
-            `;
-            
-            const likePath = selectedPath + path.sep + '%';
-            
-            db.all(query, [selectedPath, likePath], (err, rows) => {
-                if (err) {
-                    console.error(`❌ Error collecting paths for ${selectedPath}:`, err);
-                } else {
-                    rows.forEach(row => allPaths.add(row.full_path));
-                }
-                
-                completed++;
-                if (completed === selectedPaths.length) {
-                    resolve(Array.from(allPaths));
-                }
-            });
-        });
+    if (selectedPaths.length === 0) {
+        return [];
+    }
+    
+    const allPaths = new Set();
+    
+    // Use batch query optimization - collect all conditions
+    const conditions = [];
+    const params = [];
+    
+    selectedPaths.forEach(selectedPath => {
+        conditions.push('(full_path = ? OR full_path LIKE ?)');
+        params.push(selectedPath);
+        params.push(selectedPath + path.sep + '%');
     });
+    
+    // Single query instead of multiple queries
+    const query = `
+        SELECT full_path 
+        FROM files 
+        WHERE ${conditions.join(' OR ')}
+    `;
+    
+    try {
+        const rows = await dbQuery(db, query, params);
+        rows.forEach(row => allPaths.add(row.full_path));
+        return Array.from(allPaths);
+    } catch (error) {
+        console.error('❌ Error collecting paths for rescan:', error);
+        throw error;
+    }
 }
 
 // Helper function to delete old records from database
 async function deleteOldRecords(paths) {
-    return new Promise((resolve, reject) => {
-        if (paths.length === 0) {
-            return resolve(0);
-        }
+    if (paths.length === 0) {
+        return 0;
+    }
+    
+    try {
+        // Use batch delete utility
+        const deletedCount = await batchDeleteByPaths(db, paths);
+        console.log(`✅ Deleted ${deletedCount} records from database`);
         
-        // Build parameterized query for batch deletion
-        const placeholders = paths.map(() => '?').join(',');
-        const query = `DELETE FROM files WHERE full_path IN (${placeholders})`;
+        // Invalidate caches after deletion
+        await invalidateDatabaseCaches();
         
-        db.run(query, paths, async function(err) {
-            if (err) {
-                console.error('❌ Error deleting old records:', err);
-                reject(err);
-            } else {
-                console.log(`✅ Deleted ${this.changes} records from database`);
-                await invalidateDatabaseCaches();
-                resolve(this.changes);
-            }
-        });
-    });
+        return deletedCount;
+    } catch (error) {
+        console.error('❌ Error deleting old records:', error);
+        throw error;
+    }
 }
 
 // API Routes
@@ -751,6 +1087,9 @@ app.get('/api/browse', (req, res) => {
 // Global scan progress tracking
 const scanProgress = new Map();
 
+// Global archive progress tracking
+const archiveProgress = new Map();
+
 // Scan multiple selected directories
 app.post('/api/scan-multiple', async (req, res) => {
     const { paths, threads, calculateCrc32 } = req.body;
@@ -761,10 +1100,18 @@ app.post('/api/scan-multiple', async (req, res) => {
         return res.status(400).json({ error: 'Paths array is required' });
     }
 
+    // Normalize paths - support both string and object format
+    const normalizedPaths = paths.map(p => {
+        if (typeof p === 'string') {
+            return { path: p, recursive: true }; // Old format - default to recursive
+        }
+        return p; // New format with recursive flag
+    });
+
     // Validate all paths exist
-    for (const scanPath of paths) {
-        if (!fs.existsSync(scanPath)) {
-            return res.status(404).json({ error: `Path not found: ${scanPath}` });
+    for (const scanItem of normalizedPaths) {
+        if (!fs.existsSync(scanItem.path)) {
+            return res.status(404).json({ error: `Path not found: ${scanItem.path}` });
         }
     }
 
@@ -776,7 +1123,7 @@ app.post('/api/scan-multiple', async (req, res) => {
         processed: 0,
         errors: [],
         status: 'scanning',
-        paths: paths,
+        paths: normalizedPaths.map(p => p.path),
         startTime: startTime,
         endTime: null,
         duration: 0,
@@ -786,12 +1133,12 @@ app.post('/api/scan-multiple', async (req, res) => {
     });
 
     // Start scanning asynchronously
-    scanMultipleDirectoriesAsync(paths, scanId, batchSize, shouldCalculateCrc32);
+    scanMultipleDirectoriesAsync(normalizedPaths, scanId, batchSize, shouldCalculateCrc32);
 
     res.json({
         scanId: scanId,
-        message: `Scan started for ${paths.length} directories with ${batchSize} threads${shouldCalculateCrc32 ? ' (with CRC32)' : ' (without CRC32)'}`,
-        paths: paths
+        message: `Scan started for ${normalizedPaths.length} directories with ${batchSize} threads${shouldCalculateCrc32 ? ' (with CRC32)' : ' (without CRC32)'}`,
+        paths: normalizedPaths.map(p => p.path)
     });
 });
 
@@ -805,6 +1152,47 @@ app.get('/api/scan/progress/:scanId', (req, res) => {
     }
     
     res.json(progress);
+});
+
+// Get archive progress with Server-Sent Events
+app.get('/api/archive/progress/:archiveId', (req, res) => {
+    const { archiveId } = req.params;
+    
+    // Set headers for SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected', archiveId })}\n\n`);
+    
+    // Send progress updates every 500ms
+    const intervalId = setInterval(() => {
+        const progress = archiveProgress.get(archiveId);
+        
+        if (!progress) {
+            res.write(`data: ${JSON.stringify({ type: 'error', message: 'Archive not found' })}\n\n`);
+            clearInterval(intervalId);
+            res.end();
+            return;
+        }
+        
+        res.write(`data: ${JSON.stringify({ type: 'progress', ...progress })}\n\n`);
+        
+        // Close connection when complete or failed
+        if (progress.status === 'completed' || progress.status === 'failed') {
+            clearInterval(intervalId);
+            setTimeout(() => {
+                res.end();
+            }, 1000);
+        }
+    }, 500);
+    
+    // Clean up on client disconnect
+    req.on('close', () => {
+        clearInterval(intervalId);
+    });
 });
 
 // Stop scan operation
@@ -935,7 +1323,17 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
         let allItems = [];
         
         // Process root paths in parallel
-        const pathPromises = rootPaths.map(rootPath => getAllItemsRecursivelyOptimized(rootPath, scanId));
+        const pathPromises = rootPaths.map(pathItem => {
+            const scanPath = typeof pathItem === 'string' ? pathItem : pathItem.path;
+            const isRecursive = typeof pathItem === 'string' ? true : pathItem.recursive;
+            
+            if (isRecursive) {
+                return getAllItemsRecursivelyOptimized(scanPath, scanId);
+            } else {
+                // Non-recursive: scan only direct children
+                return getAllItemsNonRecursive(scanPath, scanId);
+            }
+        });
         const pathResults = await Promise.all(pathPromises);
         
         // Check for cancellation after enumeration
@@ -1113,6 +1511,55 @@ async function scanMultipleDirectoriesAsync(rootPaths, scanId, threadCount, calc
     }
 }
 
+// Non-recursive directory scan - only direct children
+async function getAllItemsNonRecursive(rootPath, scanId) {
+    const items = [];
+    const fs_promises = require('fs').promises;
+    const progress = scanProgress.get(scanId);
+
+    // Check if root path exists
+    try {
+        await fs_promises.access(rootPath);
+    } catch (error) {
+        console.log(`⚠️ Path does not exist, skipping: ${rootPath}`);
+        return items;
+    }
+
+    // Add the directory itself as an item to be processed
+    items.push(rootPath);
+    console.log(`📁 Added directory itself for non-recursive scan: ${rootPath}`);
+
+    try {
+        const dirItems = await fs_promises.readdir(rootPath);
+        
+        // Process only direct children (no recursion)
+        const itemPromises = dirItems.map(async (item) => {
+            const fullPath = path.join(rootPath, item);
+            try {
+                const stats = await fs_promises.stat(fullPath);
+                return { fullPath, isDirectory: stats.isDirectory() };
+            } catch (e) {
+                return null;
+            }
+        });
+        
+        const itemResults = await Promise.all(itemPromises);
+        
+        for (const result of itemResults) {
+            if (result && !result.isDirectory) {
+                // Add only files from top level, not subdirectories
+                items.push(result.fullPath);
+            }
+        }
+        
+        console.log(`📊 Non-recursive scan of ${rootPath}: found ${items.length} items (including directory itself)`);
+    } catch (e) {
+        console.error(`❌ Error scanning directory: ${rootPath}`, e.message);
+    }
+
+    return items;
+}
+
 // Optimized recursive directory enumeration using async operations
 async function getAllItemsRecursivelyOptimized(rootPath, scanId) {
     const items = [];
@@ -1136,6 +1583,7 @@ async function getAllItemsRecursivelyOptimized(rootPath, scanId) {
         }
         
         const currentDir = directories.pop();
+        // Add the directory itself to items
         items.push(currentDir);
 
         try {
@@ -1156,9 +1604,12 @@ async function getAllItemsRecursivelyOptimized(rootPath, scanId) {
             
             for (const result of itemResults) {
                 if (result) {
-                    items.push(result.fullPath);
                     if (result.isDirectory) {
+                        // Add subdirectory to queue for processing
                         directories.push(result.fullPath);
+                    } else {
+                        // Add only files to items list
+                        items.push(result.fullPath);
                     }
                 }
             }
@@ -1167,12 +1618,36 @@ async function getAllItemsRecursivelyOptimized(rootPath, scanId) {
         }
     }
 
+    console.log(`📊 Recursive scan of ${rootPath}: found ${items.length} items (directories + files)`);
     return items;
 }
 
 // Optimized file stats function using async operations
 async function getFileStatsOptimized(filePath, calculateCrc32 = true) {
     const fs_promises = require('fs').promises;
+    
+    // Check if this is a dummy placeholder file
+    const isDummy = filePath.endsWith('.dummy_placeholder.txt');
+    
+    if (isDummy) {
+        // Create dummy file entry without accessing filesystem
+        const parsed = path.parse(filePath);
+        const now = new Date().toISOString();
+        
+        return {
+            full_path: filePath,
+            directory: parsed.dir,
+            filename: parsed.base,
+            extension: parsed.ext,
+            size: 0,
+            created_time: now,
+            modified_time: now,
+            is_directory: 0,
+            attributes: '',
+            crc32: null,
+            is_dummy: 1  // Mark as dummy
+        };
+    }
     
     try {
         const stats = await fs_promises.stat(filePath);
@@ -1193,7 +1668,8 @@ async function getFileStatsOptimized(filePath, calculateCrc32 = true) {
             modified_time: stats.mtime.toISOString(),
             is_directory: stats.isDirectory() ? 1 : 0,
             attributes: getFileAttributes(stats),
-            crc32: crc32Value
+            crc32: crc32Value,
+            is_dummy: 0  // Not a dummy
         };
     } catch (error) {
         console.error(`Error getting stats for ${filePath}:`, error.message);
@@ -1285,50 +1761,25 @@ async function calculateCRC32Optimized(filePath, fileSize) {
 
 // Batch database insert for better performance
 async function batchInsertToDatabase(fileStatsArray) {
-    return new Promise((resolve, reject) => {
-        db.serialize(() => {
-            db.run('BEGIN TRANSACTION');
-            
-            const stmt = db.prepare(`INSERT OR REPLACE INTO files 
-                (full_path, directory, filename, extension, size, created_time, modified_time, is_directory, attributes, crc32)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-            
-            let completed = 0;
-            const total = fileStatsArray.length;
-            
-            for (const fileStats of fileStatsArray) {
-                stmt.run([
-                    fileStats.full_path, fileStats.directory, fileStats.filename, fileStats.extension,
-                    fileStats.size, fileStats.created_time, fileStats.modified_time, fileStats.is_directory,
-                    fileStats.attributes, fileStats.crc32
-                ], function(err) {
-                    if (err) {
-                        console.error('Database insert error:', err);
-                    }
-                    
-                    completed++;
-                    if (completed === total) {
-                        stmt.finalize();
-                        db.run('COMMIT', async (err) => {
-                            if (err) {
-                                reject(err);
-                            } else {
-                                // Invalidate and reload database cache after successful insert
-                                queryCache.invalidatePattern('^tree:');
-                                console.log('🔄 Reloading database cache after batch insert...');
-                                await dbCache.reload();
-                                resolve();
-                            }
-                        });
-                    }
-                });
-            }
-        });
-    });
+    if (fileStatsArray.length === 0) {
+        return;
+    }
+    
+    try {
+        // Use batch insert utility with transaction
+        const insertedCount = await batchInsertOrUpdate(db, fileStatsArray, 'files', true);
+        console.log(`✅ Inserted/updated ${insertedCount} records in database`);
+        
+        // Invalidate and reload database cache after successful insert
+        await invalidateDatabaseCaches();
+    } catch (error) {
+        console.error('❌ Database insert error:', error);
+        throw error;
+    }
 }
 
 // Check database status for multiple paths
-app.post('/api/files/database-status', (req, res) => {
+app.post('/api/files/database-status', async (req, res) => {
     const { paths } = req.body;
     
     if (!paths || !Array.isArray(paths) || paths.length === 0) {
@@ -1340,65 +1791,60 @@ app.post('/api/files/database-status', (req, res) => {
         return res.status(400).json({ error: 'Too many paths. Maximum 1000 paths per request.' });
     }
     
-    // Sanitize and validate paths
-    const sanitizedPaths = paths.map(p => {
-        if (typeof p !== 'string') {
-            throw new Error('All paths must be strings');
-        }
-        return path.normalize(p);
-    });
-    
-    // Create placeholders for IN clause
-    const placeholders = sanitizedPaths.map(() => '?').join(',');
-    const query = `SELECT full_path FROM files WHERE full_path IN (${placeholders})`;
-    
-    // Set query timeout
-    const queryTimeout = setTimeout(() => {
-        return res.status(408).json({ error: 'Database query timeout' });
-    }, 5000);
-    
-    db.all(query, sanitizedPaths, (err, rows) => {
-        clearTimeout(queryTimeout);
+    try {
+        // Sanitize and validate paths
+        const sanitizedPaths = paths.map(p => {
+            if (typeof p !== 'string') {
+                throw new Error('All paths must be strings');
+            }
+            return path.normalize(p);
+        });
         
-        if (err) {
-            console.error('Database status check error:', err.message);
-            return res.status(500).json({ error: 'Database connection error' });
-        }
+        // Use batch query utility with timeout
+        const existenceMap = await queryWithRetry(
+            db,
+            () => checkExistenceByPaths(db, sanitizedPaths),
+            3,
+            100
+        );
         
-        // Create status map
+        // Convert Map to plain object for JSON response
         const statusMap = {};
-        const foundPaths = new Set(rows.map(row => row.full_path));
-        
-        sanitizedPaths.forEach(filePath => {
-            statusMap[filePath] = foundPaths.has(filePath);
+        existenceMap.forEach((exists, filePath) => {
+            statusMap[filePath] = exists;
         });
         
         res.json({ statusMap });
-    });
+    } catch (error) {
+        console.error('Database status check error:', error.message);
+        res.status(500).json({ error: 'Database connection error' });
+    }
 });
 
 // Get files with search
-app.get('/api/files', (req, res) => {
+app.get('/api/files', async (req, res) => {
     const { search, skip = 0, limit = 100 } = req.query;
     
-    let query = 'SELECT * FROM files';
-    let params = [];
-    
-    if (search) {
-        query += ' WHERE filename LIKE ? OR full_path LIKE ? OR extension LIKE ? OR crc32 LIKE ?';
-        const searchPattern = `%${search}%`;
-        params = [searchPattern, searchPattern, searchPattern, searchPattern];
-    }
-    
-    query += ` ORDER BY is_directory DESC, filename ASC LIMIT ? OFFSET ?`;
-    params.push(parseInt(limit), parseInt(skip));
-    
-    db.all(query, params, (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
+    try {
+        let query = 'SELECT * FROM files WHERE (is_dummy IS NULL OR is_dummy = 0)';
+        let params = [];
+        
+        if (search) {
+            query += ' AND (filename LIKE ? OR full_path LIKE ? OR extension LIKE ? OR crc32 LIKE ?)';
+            const searchPattern = `%${search}%`;
+            params = [searchPattern, searchPattern, searchPattern, searchPattern];
         }
+        
+        query += ` ORDER BY is_directory DESC, filename ASC LIMIT ? OFFSET ?`;
+        params.push(parseInt(limit), parseInt(skip));
+        
+        // Use promisified query
+        const rows = await dbQuery(db, query, params);
         res.json(rows);
-    });
+    } catch (error) {
+        console.error('❌ Get files error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Get files in hierarchical tree structure
@@ -1407,19 +1853,41 @@ app.get('/api/files/tree', async (req, res) => {
     const { search, parent } = req.query;
     
     try {
-        // Ensure database cache is loaded
-        if (!dbCache.isLoaded) {
-            console.log('⏳ Database cache not loaded yet, loading now...');
-            await dbCache.loadFromDatabase();
-        }
-        
-        const allFiles = dbCache.getAll();
+        const activeCache = getActiveCache();
         const pathSep = path.sep;
         let nodes;
+        let allFiles;
+        
+        // Ensure database cache is loaded
+        if (USE_OPTIMIZED_CACHE) {
+            if (!optimizedCache.isLoaded) {
+                console.log('⏳ OptimizedDatabaseCache not loaded yet, loading now...');
+                await optimizedCache.load();
+            }
+        } else {
+            if (!dbCache.isLoaded) {
+                console.log('⏳ Database cache not loaded yet, loading now...');
+                await dbCache.loadFromDatabase();
+            }
+            allFiles = dbCache.getAll();
+        }
         
         if (search) {
-            // Search mode - find top-level matching folders/files
-            const searchResults = dbCache.search(search);
+            // Search mode - use optimized search with batch loading
+            const startTime = Date.now();
+            let searchResults;
+            
+            if (USE_OPTIMIZED_CACHE) {
+                // Use SearchIndex for initial filtering, then batch load full data
+                const searchLimit = config.searchLimit;
+                searchResults = await optimizedCache.search(search, searchLimit * 2); // Get more for filtering
+                console.log(`🔍 SearchIndex found ${searchResults.length} results in ${Date.now() - startTime}ms`);
+            } else {
+                // Use old cache search
+                searchResults = dbCache.search(search);
+                console.log(`🔍 Legacy search found ${searchResults.length} results in ${Date.now() - startTime}ms`);
+            }
+            
             const lowerSearch = search.toLowerCase();
             const searchWords = lowerSearch.split(/\s+/);
             
@@ -1450,39 +1918,54 @@ app.get('/api/files/tree', async (req, res) => {
                 }
                 
                 if (matchingPath && !pathsByDepth.has(matchingPath)) {
-                    // Find the actual entry for this path
-                    const entry = allFiles.find(f => f.full_path === matchingPath);
+                    // For optimized cache, we need to get the index data for this path
+                    let entry;
+                    if (USE_OPTIMIZED_CACHE) {
+                        const indexData = optimizedCache.getByPath(matchingPath);
+                        if (indexData) {
+                            // We have the minimal data, use the full file data we already loaded
+                            entry = searchResults.find(f => f.full_path === matchingPath);
+                        }
+                    } else {
+                        entry = allFiles.find(f => f.full_path === matchingPath);
+                    }
+                    
                     if (entry) {
                         pathsByDepth.set(matchingPath, { file: entry, depth: matchingDepth });
                     }
                 }
             });
             
-            // Score and sort results
+            // Score and sort results using cached data
             const scoredResults = Array.from(pathsByDepth.values()).map(({ file, depth }) => {
                 const lowerFilename = file.filename.toLowerCase();
                 const lowerPath = file.full_path.toLowerCase();
                 let score = 0;
                 
-                // Exact match in filename
+                // Exact match in filename (highest priority)
                 if (lowerFilename === lowerSearch) score += 1000;
+                // Filename starts with search term
+                else if (lowerFilename.startsWith(lowerSearch)) score += 750;
                 // Filename contains exact phrase
-                if (lowerFilename.includes(lowerSearch)) score += 500;
+                else if (lowerFilename.includes(lowerSearch)) score += 500;
                 // Path contains exact phrase  
                 if (lowerPath.includes(lowerSearch)) score += 100;
                 // Prefer directories
                 if (file.is_directory === 1) score += 50;
-                // Strongly prefer shallower paths
+                // Strongly prefer shallower paths (closer to root)
                 score -= depth * 10;
                 
                 return { file, score };
             });
             
+            // Sort by score descending
             scoredResults.sort((a, b) => b.score - a.score);
             
-            // Limit to 1000 results
-            const limitedResults = scoredResults.slice(0, 1000).map(r => r.file);
+            // Optimize: load only top N results instead of all matches
+            const topN = parseInt(process.env.SEARCH_LIMIT) || 1000;
+            const limitedResults = scoredResults.slice(0, topN).map(r => r.file);
             
+            // Build response nodes
             nodes = limitedResults.map(file => {
                 let existsOnDisk = false;
                 try {
@@ -1491,16 +1974,24 @@ app.get('/api/files/tree', async (req, res) => {
                     existsOnDisk = false;
                 }
                 
-                const hasChildren = file.is_directory === 1 && 
-                    (dbCache.getByDirectory(file.full_path).length > 0 ||
-                     allFiles.some(f => f.full_path.startsWith(file.full_path + path.sep)));
+                // Check if has children
+                let hasChildren = false;
+                if (file.is_directory === 1) {
+                    if (USE_OPTIMIZED_CACHE) {
+                        const childrenIds = optimizedCache.getChildrenIds(file.full_path);
+                        hasChildren = childrenIds.size > 0;
+                    } else {
+                        hasChildren = dbCache.getByDirectory(file.full_path).length > 0 ||
+                                     allFiles.some(f => f.full_path.startsWith(file.full_path + path.sep));
+                    }
+                }
                 
                 return {
                     id: file.id,
                     path: file.full_path,
                     name: file.filename,
                     isDirectory: file.is_directory === 1,
-                    hasChildren: hasChildren, // Allow expanding in search results
+                    hasChildren: hasChildren,
                     size: file.size,
                     existsOnDisk: existsOnDisk,
                     createdTime: file.created_time,
@@ -1510,47 +2001,59 @@ app.get('/api/files/tree', async (req, res) => {
                 };
             });
             
-            console.log(`🔍 Search found ${searchResults.length} raw results, filtered to ${pathsByDepth.size} top-level paths, returning ${nodes.length}`);
+            const totalTime = Date.now() - startTime;
+            console.log(`🔍 Search completed: ${searchResults.length} raw results → ${pathsByDepth.size} top-level paths → ${nodes.length} returned (${totalTime}ms)`);
         } else if (!parent || parent === 'root') {
             // Root level - get top-level directories (drives and root folders)
             
             // Collect unique root paths (first level only)
             const rootPaths = new Map();
             
-            allFiles.forEach(file => {
-                const fullPath = file.full_path || '';
-                if (!fullPath) return;
+            if (USE_OPTIMIZED_CACHE) {
+                // Use index cache to get all paths
+                const allPaths = optimizedCache.getAllPaths();
                 
-                // Extract root part (drive or first folder)
-                let rootPart;
-                if (process.platform === 'win32') {
-                    // Windows: C:\, D:\, etc.
-                    const match = fullPath.match(/^([A-Z]:)/i);
-                    if (match) {
-                        rootPart = match[1];
-                    }
-                } else {
-                    // Unix: /home, /var, etc.
-                    const parts = fullPath.split(pathSep).filter(p => p);
-                    if (parts.length > 0) {
-                        rootPart = pathSep + parts[0];
-                    }
-                }
-                
-                if (rootPart && !rootPaths.has(rootPart)) {
-                    // Find the actual directory entry for this root
-                    const rootDir = allFiles.find(f => 
-                        f.full_path === rootPart && f.is_directory === 1
-                    );
+                allPaths.forEach(fullPath => {
+                    if (!fullPath) return;
                     
-                    if (rootDir) {
-                        rootPaths.set(rootPart, rootDir);
+                    // Extract root part (drive or first folder)
+                    let rootPart;
+                    if (process.platform === 'win32') {
+                        // Windows: C:\, D:\, etc.
+                        const match = fullPath.match(/^([A-Z]:)/i);
+                        if (match) {
+                            rootPart = match[1];
+                        }
+                    } else {
+                        // Unix: /home, /var, etc.
+                        const parts = fullPath.split(pathSep).filter(p => p);
+                        if (parts.length > 0) {
+                            rootPart = pathSep + parts[0];
+                        }
+                    }
+                    
+                    if (rootPart && !rootPaths.has(rootPart)) {
+                        rootPaths.set(rootPart, rootPart);
+                    }
+                });
+                
+                // Batch load full data for root paths
+                const rootPathsList = Array.from(rootPaths.keys());
+                const rootFiles = [];
+                
+                for (const rootPath of rootPathsList) {
+                    const indexData = optimizedCache.getByPath(rootPath);
+                    if (indexData) {
+                        const fullData = await optimizedCache.getFullData(indexData.id);
+                        if (fullData) {
+                            rootFiles.push(fullData);
+                        }
                     } else {
                         // Create virtual root entry
-                        rootPaths.set(rootPart, {
-                            id: `virtual_${rootPart}`,
-                            full_path: rootPart,
-                            filename: rootPart,
+                        rootFiles.push({
+                            id: `virtual_${rootPath}`,
+                            full_path: rootPath,
+                            filename: rootPath,
                             is_directory: 1,
                             size: 0,
                             created_time: null,
@@ -1559,36 +2062,120 @@ app.get('/api/files/tree', async (req, res) => {
                         });
                     }
                 }
-            });
-            
-            nodes = Array.from(rootPaths.values()).map(file => {
-                const byDir = dbCache.getByDirectory(file.full_path).length;
-                const byPrefix = allFiles.filter(f => f.full_path.startsWith(file.full_path + pathSep)).length;
-                const hasChildren = byDir > 0 || byPrefix > 0;
                 
-                console.log(`🔍 Root "${file.full_path}": byDir=${byDir}, byPrefix=${byPrefix}, hasChildren=${hasChildren}`);
+                nodes = rootFiles.map(file => {
+                    // For root drives, check if there are any paths starting with drive letter
+                    const isDrive = /^[A-Z]:$/i.test(file.full_path);
+                    let hasChildren = false;
+                    
+                    if (isDrive) {
+                        // Check if any paths start with this drive
+                        const allPaths = optimizedCache.getAllPaths();
+                        const drivePrefix = file.full_path + pathSep;
+                        hasChildren = Array.from(allPaths).some(p => p.startsWith(drivePrefix));
+                    } else {
+                        const childrenIds = optimizedCache.getChildrenIds(file.full_path);
+                        hasChildren = childrenIds.size > 0;
+                    }
+                    
+                    console.log(`🔍 Root "${file.full_path}": hasChildren=${hasChildren}`);
+                    
+                    let existsOnDisk = false;
+                    try {
+                        existsOnDisk = fs.existsSync(file.full_path);
+                    } catch (e) {
+                        existsOnDisk = false;
+                    }
+                    
+                    return {
+                        id: file.id,
+                        path: file.full_path,
+                        name: file.filename,
+                        isDirectory: true,
+                        hasChildren: hasChildren,
+                        size: file.size || 0,
+                        existsOnDisk: existsOnDisk,
+                        createdTime: file.created_time,
+                        modifiedTime: file.modified_time,
+                        crc32: file.crc32,
+                        inDatabase: typeof file.id === 'number'
+                    };
+                });
+            } else {
+                // Use old cache
+                allFiles.forEach(file => {
+                    const fullPath = file.full_path || '';
+                    if (!fullPath) return;
+                    
+                    // Extract root part (drive or first folder)
+                    let rootPart;
+                    if (process.platform === 'win32') {
+                        // Windows: C:\, D:\, etc.
+                        const match = fullPath.match(/^([A-Z]:)/i);
+                        if (match) {
+                            rootPart = match[1];
+                        }
+                    } else {
+                        // Unix: /home, /var, etc.
+                        const parts = fullPath.split(pathSep).filter(p => p);
+                        if (parts.length > 0) {
+                            rootPart = pathSep + parts[0];
+                        }
+                    }
+                    
+                    if (rootPart && !rootPaths.has(rootPart)) {
+                        // Find the actual directory entry for this root
+                        const rootDir = allFiles.find(f => 
+                            f.full_path === rootPart && f.is_directory === 1
+                        );
+                        
+                        if (rootDir) {
+                            rootPaths.set(rootPart, rootDir);
+                        } else {
+                            // Create virtual root entry
+                            rootPaths.set(rootPart, {
+                                id: `virtual_${rootPart}`,
+                                full_path: rootPart,
+                                filename: rootPart,
+                                is_directory: 1,
+                                size: 0,
+                                created_time: null,
+                                modified_time: null,
+                                crc32: null
+                            });
+                        }
+                    }
+                });
                 
-                let existsOnDisk = false;
-                try {
-                    existsOnDisk = fs.existsSync(file.full_path);
-                } catch (e) {
-                    existsOnDisk = false;
-                }
-                
-                return {
-                    id: file.id,
-                    path: file.full_path,
-                    name: file.filename,
-                    isDirectory: true,
-                    hasChildren: hasChildren,
-                    size: file.size || 0,
-                    existsOnDisk: existsOnDisk,
-                    createdTime: file.created_time,
-                    modifiedTime: file.modified_time,
-                    crc32: file.crc32,
-                    inDatabase: typeof file.id === 'number'
-                };
-            });
+                nodes = Array.from(rootPaths.values()).map(file => {
+                    const byDir = dbCache.getByDirectory(file.full_path).length;
+                    const byPrefix = allFiles.filter(f => f.full_path.startsWith(file.full_path + pathSep)).length;
+                    const hasChildren = byDir > 0 || byPrefix > 0;
+                    
+                    console.log(`🔍 Root "${file.full_path}": byDir=${byDir}, byPrefix=${byPrefix}, hasChildren=${hasChildren}`);
+                    
+                    let existsOnDisk = false;
+                    try {
+                        existsOnDisk = fs.existsSync(file.full_path);
+                    } catch (e) {
+                        existsOnDisk = false;
+                    }
+                    
+                    return {
+                        id: file.id,
+                        path: file.full_path,
+                        name: file.filename,
+                        isDirectory: true,
+                        hasChildren: hasChildren,
+                        size: file.size || 0,
+                        existsOnDisk: existsOnDisk,
+                        createdTime: file.created_time,
+                        modifiedTime: file.modified_time,
+                        crc32: file.crc32,
+                        inDatabase: typeof file.id === 'number'
+                    };
+                });
+            }
         } else {
             // Load children of specific directory
             
@@ -1598,62 +2185,51 @@ app.get('/api/files/tree', async (req, res) => {
             console.log(`🔍 Loading children for parent: "${parent}"`);
             console.log(`   Normalized parent: "${normalizedParent}"`);
             console.log(`   Path separator: "${pathSep}"`);
-            console.log(`   Total files in cache: ${allFiles.length}`);
             
-            // Debug: Check what files exist for this parent
-            const filesWithParentInPath = allFiles.filter(f => 
-                f.full_path && f.full_path.toLowerCase().startsWith(normalizedParent.toLowerCase())
-            );
-            console.log(`   Files starting with "${normalizedParent}": ${filesWithParentInPath.length}`);
-            
-            // Always show first 5 samples
-            console.log(`   Sample files (first 5):`);
-            filesWithParentInPath.slice(0, 5).forEach(f => {
-                console.log(`     - full_path: "${f.full_path}"`);
-                console.log(`       directory: "${f.directory}"`);
-                console.log(`       filename: "${f.filename}"`);
-            });
-            
-            // Find direct children only (not nested)
-            let children = [];
-            
-            // Method 1: Files where directory === normalizedParent
-            const directChildren = allFiles.filter(file => 
-                file.full_path && file.full_path !== normalizedParent && file.directory === normalizedParent
-            );
-            
-            console.log(`   Method 1 (directory === normalizedParent): ${directChildren.length} files`);
-            
-            // Method 2: If no direct children found, extract unique first-level items
-            if (directChildren.length === 0 && filesWithParentInPath.length > 0) {
-                console.log(`   Using Method 2 (extract first-level from paths)`);
+            if (USE_OPTIMIZED_CACHE) {
+                // Check if this is a root drive (e.g., "P:", "C:")
+                const isDrive = /^[A-Z]:$/i.test(normalizedParent);
                 
-                const uniqueFirstLevel = new Map();
-                
-                filesWithParentInPath.forEach(file => {
-                    if (file.full_path === normalizedParent) return;
+                if (isDrive) {
+                    // For drives, find all first-level folders
+                    console.log(`   Detected root drive: ${normalizedParent}`);
                     
-                    // Extract first level after parent
-                    // Example: "P:\Photo\Subfolder\file.txt" -> "Subfolder"
-                    const afterParent = file.full_path.substring(normalizedParent.length);
-                    // Remove leading separator if present
-                    const cleanPath = afterParent.startsWith(pathSep) ? afterParent.substring(1) : afterParent;
-                    const firstPart = cleanPath.split(pathSep)[0];
+                    const allPaths = optimizedCache.getAllPaths();
+                    const firstLevelPaths = new Set();
+                    const drivePrefix = normalizedParent + pathSep;
                     
-                    if (firstPart && !uniqueFirstLevel.has(firstPart)) {
-                        // Build the full path for this first-level item
-                        const firstLevelPath = normalizedParent + (normalizedParent.endsWith(pathSep) ? '' : pathSep) + firstPart;
-                        const actualEntry = allFiles.find(f => f.full_path === firstLevelPath);
-                        
-                        if (actualEntry) {
-                            uniqueFirstLevel.set(firstPart, actualEntry);
-                            console.log(`     Found actual entry: ${firstLevelPath}`);
+                    // Find all unique first-level paths under this drive
+                    allPaths.forEach(fullPath => {
+                        if (fullPath.startsWith(drivePrefix)) {
+                            // Extract first level: "P:\Photo\Sub" -> "P:\Photo"
+                            const afterDrive = fullPath.substring(drivePrefix.length);
+                            const firstPart = afterDrive.split(pathSep)[0];
+                            if (firstPart) {
+                                const firstLevelPath = drivePrefix + firstPart;
+                                firstLevelPaths.add(firstLevelPath);
+                            }
+                        }
+                    });
+                    
+                    console.log(`   Found ${firstLevelPaths.size} first-level paths`);
+                    
+                    // Load full data for these paths
+                    const children = [];
+                    for (const firstLevelPath of firstLevelPaths) {
+                        const indexData = optimizedCache.getByPath(firstLevelPath);
+                        if (indexData) {
+                            const fullData = await optimizedCache.getFullData(indexData.id);
+                            if (fullData) {
+                                children.push(fullData);
+                            }
                         } else {
-                            // Create virtual entry
-                            uniqueFirstLevel.set(firstPart, {
+                            // Path doesn't exist as a file entry, but has children
+                            // Create virtual directory entry
+                            const folderName = firstLevelPath.split(pathSep).pop();
+                            children.push({
                                 id: `virtual_${firstLevelPath}`,
                                 full_path: firstLevelPath,
-                                filename: firstPart,
+                                filename: folderName,
                                 directory: normalizedParent,
                                 is_directory: 1,
                                 size: 0,
@@ -1661,45 +2237,188 @@ app.get('/api/files/tree', async (req, res) => {
                                 modified_time: null,
                                 crc32: null
                             });
-                            console.log(`     Created virtual entry: ${firstLevelPath}`);
+                            console.log(`   Created virtual entry for: ${firstLevelPath}`);
                         }
                     }
+                    
+                    console.log(`   Loaded ${children.length} children with full data`);
+                    
+                    nodes = children.map(file => {
+                        // For virtual entries, check if there are any files under this path
+                        let hasChildren = false;
+                        if (typeof file.id === 'string' && file.id.startsWith('virtual_')) {
+                            // Virtual entry - check if any paths start with this path
+                            const allPaths = optimizedCache.getAllPaths();
+                            hasChildren = Array.from(allPaths).some(p => 
+                                p.startsWith(file.full_path + pathSep) && p !== file.full_path
+                            );
+                        } else {
+                            // Real entry - use normal logic
+                            hasChildren = file.is_directory === 1 && 
+                                optimizedCache.getChildrenIds(file.full_path).size > 0;
+                        }
+                        
+                        let existsOnDisk = false;
+                        try {
+                            existsOnDisk = fs.existsSync(file.full_path);
+                        } catch (e) {
+                            existsOnDisk = false;
+                        }
+                        
+                        return {
+                            id: file.id,
+                            path: file.full_path,
+                            name: file.filename,
+                            isDirectory: file.is_directory === 1,
+                            hasChildren: hasChildren,
+                            size: file.size,
+                            existsOnDisk: existsOnDisk,
+                            createdTime: file.created_time,
+                            modifiedTime: file.modified_time,
+                            crc32: file.crc32,
+                            inDatabase: typeof file.id === 'number'
+                        };
+                    });
+                } else {
+                    // Regular directory - use normal logic
+                    const childrenIds = optimizedCache.getChildrenIds(normalizedParent);
+                    console.log(`   Children IDs from index: ${childrenIds.size}`);
+                    
+                    // Batch load full data for children
+                    const children = await optimizedCache.getFullDataBatch(Array.from(childrenIds));
+                    console.log(`   Loaded ${children.length} children with full data`);
+                    
+                    nodes = children.map(file => {
+                        const hasChildren = file.is_directory === 1 && 
+                            optimizedCache.getChildrenIds(file.full_path).size > 0;
+                        
+                        let existsOnDisk = false;
+                        try {
+                            existsOnDisk = fs.existsSync(file.full_path);
+                        } catch (e) {
+                            existsOnDisk = false;
+                        }
+                        
+                        return {
+                            id: file.id,
+                            path: file.full_path,
+                            name: file.filename,
+                            isDirectory: file.is_directory === 1,
+                            hasChildren: hasChildren,
+                            size: file.size,
+                            existsOnDisk: existsOnDisk,
+                            createdTime: file.created_time,
+                            modifiedTime: file.modified_time,
+                            crc32: file.crc32,
+                            inDatabase: true
+                        };
+                    });
+                }
+            } else {
+                // Use old cache
+                console.log(`   Total files in cache: ${allFiles.length}`);
+                
+                // Debug: Check what files exist for this parent
+                const filesWithParentInPath = allFiles.filter(f => 
+                    f.full_path && f.full_path.toLowerCase().startsWith(normalizedParent.toLowerCase())
+                );
+                console.log(`   Files starting with "${normalizedParent}": ${filesWithParentInPath.length}`);
+                
+                // Always show first 5 samples
+                console.log(`   Sample files (first 5):`);
+                filesWithParentInPath.slice(0, 5).forEach(f => {
+                    console.log(`     - full_path: "${f.full_path}"`);
+                    console.log(`       directory: "${f.directory}"`);
+                    console.log(`       filename: "${f.filename}"`);
                 });
                 
-                children = Array.from(uniqueFirstLevel.values());
-                console.log(`   Method 2 found ${children.length} unique first-level items`);
-            } else {
-                children = directChildren;
-            }
-            
-            console.log(`   Total direct children: ${children.length}`);
-            
-            nodes = children.map(file => {
-                const hasChildren = file.is_directory === 1 && 
-                    (dbCache.getByDirectory(file.full_path).length > 0 ||
-                     allFiles.some(f => f.full_path.startsWith(file.full_path + pathSep) && f.full_path !== file.full_path));
+                // Find direct children only (not nested)
+                let children = [];
                 
-                let existsOnDisk = false;
-                try {
-                    existsOnDisk = fs.existsSync(file.full_path);
-                } catch (e) {
-                    existsOnDisk = false;
+                // Method 1: Files where directory === normalizedParent
+                const directChildren = allFiles.filter(file => 
+                    file.full_path && file.full_path !== normalizedParent && file.directory === normalizedParent
+                );
+                
+                console.log(`   Method 1 (directory === normalizedParent): ${directChildren.length} files`);
+                
+                // Method 2: If no direct children found, extract unique first-level items
+                if (directChildren.length === 0 && filesWithParentInPath.length > 0) {
+                    console.log(`   Using Method 2 (extract first-level from paths)`);
+                    
+                    const uniqueFirstLevel = new Map();
+                    
+                    filesWithParentInPath.forEach(file => {
+                        if (file.full_path === normalizedParent) return;
+                        
+                        // Extract first level after parent
+                        // Example: "P:\Photo\Subfolder\file.txt" -> "Subfolder"
+                        const afterParent = file.full_path.substring(normalizedParent.length);
+                        // Remove leading separator if present
+                        const cleanPath = afterParent.startsWith(pathSep) ? afterParent.substring(1) : afterParent;
+                        const firstPart = cleanPath.split(pathSep)[0];
+                        
+                        if (firstPart && !uniqueFirstLevel.has(firstPart)) {
+                            // Build the full path for this first-level item
+                            const firstLevelPath = normalizedParent + (normalizedParent.endsWith(pathSep) ? '' : pathSep) + firstPart;
+                            const actualEntry = allFiles.find(f => f.full_path === firstLevelPath);
+                            
+                            if (actualEntry) {
+                                uniqueFirstLevel.set(firstPart, actualEntry);
+                                console.log(`     Found actual entry: ${firstLevelPath}`);
+                            } else {
+                                // Create virtual entry
+                                uniqueFirstLevel.set(firstPart, {
+                                    id: `virtual_${firstLevelPath}`,
+                                    full_path: firstLevelPath,
+                                    filename: firstPart,
+                                    directory: normalizedParent,
+                                    is_directory: 1,
+                                    size: 0,
+                                    created_time: null,
+                                    modified_time: null,
+                                    crc32: null
+                                });
+                                console.log(`     Created virtual entry: ${firstLevelPath}`);
+                            }
+                        }
+                    });
+                    
+                    children = Array.from(uniqueFirstLevel.values());
+                    console.log(`   Method 2 found ${children.length} unique first-level items`);
+                } else {
+                    children = directChildren;
                 }
                 
-                return {
-                    id: file.id,
-                    path: file.full_path,
-                    name: file.filename,
-                    isDirectory: file.is_directory === 1,
-                    hasChildren: hasChildren,
-                    size: file.size,
-                    existsOnDisk: existsOnDisk,
-                    createdTime: file.created_time,
-                    modifiedTime: file.modified_time,
-                    crc32: file.crc32,
-                    inDatabase: true
-                };
-            });
+                console.log(`   Total direct children: ${children.length}`);
+                
+                nodes = children.map(file => {
+                    const hasChildren = file.is_directory === 1 && 
+                        (dbCache.getByDirectory(file.full_path).length > 0 ||
+                         allFiles.some(f => f.full_path.startsWith(file.full_path + pathSep) && f.full_path !== file.full_path));
+                    
+                    let existsOnDisk = false;
+                    try {
+                        existsOnDisk = fs.existsSync(file.full_path);
+                    } catch (e) {
+                        existsOnDisk = false;
+                    }
+                    
+                    return {
+                        id: file.id,
+                        path: file.full_path,
+                        name: file.filename,
+                        isDirectory: file.is_directory === 1,
+                        hasChildren: hasChildren,
+                        size: file.size,
+                        existsOnDisk: existsOnDisk,
+                        createdTime: file.created_time,
+                        modifiedTime: file.modified_time,
+                        crc32: file.crc32,
+                        inDatabase: true
+                    };
+                });
+            }
         }
         
         // Sort: directories first, then by name
@@ -1736,13 +2455,15 @@ app.get('/api/tree/lazy', (req, res) => {
     
     console.log(`🌳 Lazy load request: parent="${parent}", cursor=${offset}, limit=${maxLimit}`);
     
-    // Check cache first
+    // Check cache first (if enabled)
     const cacheKey = `tree:${parent || 'root'}:${offset}:${maxLimit}`;
-    const cachedResult = queryCache.get(cacheKey);
-    
-    if (cachedResult) {
-        console.log(`✅ Returning cached result for ${cacheKey}`);
-        return res.json(cachedResult);
+    if (queryCache) {
+        const cachedResult = queryCache.get(cacheKey);
+        
+        if (cachedResult) {
+            console.log(`✅ Returning cached result for ${cacheKey}`);
+            return res.json(cachedResult);
+        }
     }
     
     try {
@@ -1854,8 +2575,10 @@ app.get('/api/tree/lazy', (req, res) => {
                     limit: maxLimit
                 };
                 
-                // Cache the result
-                queryCache.set(cacheKey, result);
+                // Cache the result (if enabled)
+                if (queryCache) {
+                    queryCache.set(cacheKey, result);
+                }
                 
                 res.json(result);
             });
@@ -1867,49 +2590,205 @@ app.get('/api/tree/lazy', (req, res) => {
     }
 });
 
+// Batch tree expansion endpoint - optimized for loading multiple nodes at once
+// Uses IndexCache for structure and batch loads full details only when needed
+app.post('/api/tree/batch-expand', async (req, res) => {
+    const { directories } = req.body;
+    
+    if (!directories || !Array.isArray(directories)) {
+        return res.status(400).json({ error: 'directories array is required' });
+    }
+    
+    try {
+        // Ensure optimized cache is loaded
+        if (USE_OPTIMIZED_CACHE) {
+            if (!optimizedCache.isLoaded) {
+                console.log('⏳ OptimizedDatabaseCache not loaded yet, loading now...');
+                await optimizedCache.load();
+            }
+        } else {
+            return res.status(400).json({ 
+                error: 'Batch expansion requires optimized cache to be enabled' 
+            });
+        }
+        
+        const startTime = Date.now();
+        const results = {};
+        
+        // Collect all child IDs for all requested directories
+        const allChildIds = new Set();
+        const directoryChildMap = new Map();
+        
+        for (const directory of directories) {
+            const childrenIds = optimizedCache.getChildrenIds(directory);
+            directoryChildMap.set(directory, Array.from(childrenIds));
+            childrenIds.forEach(id => allChildIds.add(id));
+        }
+        
+        // Batch load full data for all children at once (single DB query)
+        const allChildren = await optimizedCache.getFullDataBatch(Array.from(allChildIds));
+        
+        // Create a map for quick lookup
+        const childrenMap = new Map();
+        allChildren.forEach(child => {
+            childrenMap.set(child.id, child);
+        });
+        
+        // Build response for each directory
+        for (const directory of directories) {
+            const childIds = directoryChildMap.get(directory);
+            const children = childIds
+                .map(id => childrenMap.get(id))
+                .filter(child => child !== undefined);
+            
+            // Transform to tree node format
+            results[directory] = children.map(file => {
+                const hasChildren = file.is_directory === 1 && 
+                    optimizedCache.getChildrenIds(file.full_path).size > 0;
+                
+                let existsOnDisk = false;
+                try {
+                    existsOnDisk = fs.existsSync(file.full_path);
+                } catch (error) {
+                    existsOnDisk = false;
+                }
+                
+                return {
+                    id: file.id,
+                    path: file.full_path,
+                    name: file.filename,
+                    isDirectory: file.is_directory === 1,
+                    hasChildren: hasChildren,
+                    size: file.size,
+                    extension: file.extension,
+                    createdTime: file.created_time,
+                    modifiedTime: file.modified_time,
+                    crc32: file.crc32,
+                    existsOnDisk: existsOnDisk,
+                    inDatabase: true
+                };
+            });
+            
+            // Sort: directories first, then by name
+            results[directory].sort((a, b) => {
+                if (a.isDirectory !== b.isDirectory) {
+                    return b.isDirectory ? 1 : -1;
+                }
+                return a.name.localeCompare(b.name);
+            });
+        }
+        
+        const duration = Date.now() - startTime;
+        const totalNodes = Object.values(results).reduce((sum, nodes) => sum + nodes.length, 0);
+        
+        console.log(`✅ Batch expanded ${directories.length} directories, ${totalNodes} total nodes in ${duration}ms`);
+        
+        res.json({
+            results: results,
+            stats: {
+                directoriesExpanded: directories.length,
+                totalNodes: totalNodes,
+                duration: duration
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Batch expansion error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Get file by ID
-app.get('/api/files/:id', (req, res) => {
+app.get('/api/files/:id', async (req, res) => {
     const { id } = req.params;
     
-    db.get('SELECT * FROM files WHERE id = ?', [id], (err, row) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
+    try {
+        const activeCache = getActiveCache();
+        let file;
+        
+        if (USE_OPTIMIZED_CACHE) {
+            // Ensure cache is loaded
+            if (!optimizedCache.isLoaded) {
+                console.log('⏳ OptimizedDatabaseCache not loaded yet, loading now...');
+                await optimizedCache.load();
+            }
+            
+            // Try hot cache first, fallback to database
+            file = await optimizedCache.getFullData(parseInt(id));
+        } else {
+            // Use old cache or direct database query
+            if (!dbCache.isLoaded) {
+                await dbCache.loadFromDatabase();
+            }
+            
+            // Direct database query for old cache
+            file = await new Promise((resolve, reject) => {
+                db.get('SELECT * FROM files WHERE id = ?', [id], (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row);
+                });
+            });
         }
-        if (!row) {
+        
+        if (!file) {
             return res.status(404).json({ error: 'File not found' });
         }
-        res.json(row);
-    });
+        
+        res.json(file);
+    } catch (error) {
+        console.error('❌ Error fetching file by ID:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Delete file record
-app.delete('/api/files/:id', (req, res) => {
+app.delete('/api/files/:id', async (req, res) => {
     const { id } = req.params;
     
-    db.run('DELETE FROM files WHERE id = ?', [id], async function(err) {
-        if (err) {
-            return res.status(500).json({ error: err.message });
+    try {
+        // Get file info before deletion for selective invalidation
+        const fileId = parseInt(id);
+        let filePath = null;
+        let isDirectory = false;
+        
+        if (USE_OPTIMIZED_CACHE && optimizedCache.isLoaded) {
+            const indexData = optimizedCache.getIndexData(fileId);
+            if (indexData) {
+                filePath = indexData.full_path;
+                isDirectory = indexData.is_directory === 1;
+            }
         }
-        if (this.changes === 0) {
+        
+        // Use batch delete utility (works for single ID too)
+        const deletedCount = await batchDeleteByIds(db, [fileId]);
+        
+        if (deletedCount === 0) {
             return res.status(404).json({ error: 'File not found' });
         }
-        await invalidateDatabaseCaches();
+        
+        // Use selective invalidation if we have the file path
+        if (filePath && USE_OPTIMIZED_CACHE) {
+            if (isDirectory) {
+                await invalidateDatabaseCaches({ directories: [filePath], fullReload: false });
+            } else {
+                await invalidateDatabaseCaches({ paths: [filePath], fullReload: false });
+            }
+        } else {
+            await invalidateDatabaseCaches();
+        }
+        
         res.json({ message: 'File record deleted' });
-    });
+    } catch (error) {
+        console.error('❌ Delete file error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Get statistics
-app.get('/api/stats', (req, res) => {
-    db.all(`
-        SELECT 
-            COUNT(CASE WHEN is_directory = 0 THEN 1 END) as total_files,
-            COUNT(CASE WHEN is_directory = 1 THEN 1 END) as total_directories,
-            SUM(CASE WHEN is_directory = 0 THEN size ELSE 0 END) as total_size_bytes
-        FROM files
-    `, (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
+app.get('/api/stats', async (req, res) => {
+    try {
+        // Use database stats utility for comprehensive statistics
+        const stats = await getDatabaseStats(db);
         
         // Prevent caching
         res.set({
@@ -1918,8 +2797,275 @@ app.get('/api/stats', (req, res) => {
             'Expires': '0'
         });
         
-        res.json(rows[0]);
-    });
+        res.json({
+            total_files: stats.totalFiles,
+            total_directories: stats.totalDirectories,
+            total_size_bytes: stats.totalSize,
+            database_size_bytes: stats.databaseSize || 0
+        });
+    } catch (error) {
+        console.error('❌ Get stats error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get cache statistics
+app.get('/api/cache/stats', (req, res) => {
+    // Check if cache stats are enabled
+    if (!config.enableCacheStats) {
+        return res.status(403).json({
+            error: 'Cache statistics are disabled',
+            message: 'Set ENABLE_CACHE_STATS=true to enable cache statistics'
+        });
+    }
+    
+    try {
+        const activeCache = getActiveCache();
+        const isOptimized = activeCacheType === 'optimized';
+        
+        if (isOptimized) {
+            if (!optimizedCache.isLoaded) {
+                return res.status(503).json({ 
+                    error: 'Cache not loaded yet',
+                    cacheStrategy: activeCacheType,
+                    configuredStrategy: config.cacheStrategy,
+                    loadFailed: activeCacheLoadFailed,
+                    isLoaded: false
+                });
+            }
+            
+            const stats = optimizedCache.getStats();
+            
+            // Add additional metadata
+            const response = {
+                cacheStrategy: activeCacheType,
+                configuredStrategy: config.cacheStrategy,
+                loadFailed: activeCacheLoadFailed,
+                ...stats,
+                timestamp: new Date().toISOString(),
+                uptime: process.uptime(),
+                processMemory: {
+                    heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+                    heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+                    rss: Math.round(process.memoryUsage().rss / 1024 / 1024)
+                }
+            };
+            
+            res.json(response);
+        } else {
+            // Legacy cache doesn't have detailed stats
+            res.json({
+                cacheStrategy: activeCacheType,
+                configuredStrategy: config.cacheStrategy,
+                loadFailed: activeCacheLoadFailed,
+                isLoaded: dbCache.isLoaded,
+                totalRecords: dbCache.isLoaded ? dbCache.allFiles.length : 0,
+                timestamp: new Date().toISOString(),
+                uptime: process.uptime(),
+                processMemory: {
+                    heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+                    heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+                    rss: Math.round(process.memoryUsage().rss / 1024 / 1024)
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error retrieving cache stats:', error);
+        res.status(500).json({ 
+            error: 'Failed to retrieve cache statistics',
+            details: error.message 
+        });
+    }
+});
+
+// Health check endpoint with cache stats
+app.get('/api/health', (req, res) => {
+    try {
+        const health = {
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            memory: {
+                heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+                heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+                rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+                external: Math.round(process.memoryUsage().external / 1024 / 1024)
+            },
+            cache: null
+        };
+        
+        // Add cache statistics with migration info
+        if (activeCacheType === 'optimized') {
+            if (optimizedCache.isLoaded) {
+                health.cache = {
+                    strategy: activeCacheType,
+                    configuredStrategy: config.cacheStrategy,
+                    loadFailed: activeCacheLoadFailed,
+                    isLoaded: true,
+                    stats: optimizedCache.getStats()
+                };
+            } else {
+                health.cache = {
+                    strategy: activeCacheType,
+                    configuredStrategy: config.cacheStrategy,
+                    loadFailed: activeCacheLoadFailed,
+                    isLoaded: false
+                };
+                health.status = 'degraded';
+            }
+        } else {
+            if (dbCache.isLoaded) {
+                health.cache = {
+                    strategy: activeCacheType,
+                    configuredStrategy: config.cacheStrategy,
+                    loadFailed: activeCacheLoadFailed,
+                    isLoaded: true,
+                    totalRecords: dbCache.allFiles.length
+                };
+            } else {
+                health.cache = {
+                    strategy: activeCacheType,
+                    configuredStrategy: config.cacheStrategy,
+                    loadFailed: activeCacheLoadFailed,
+                    isLoaded: false
+                };
+                health.status = 'degraded';
+            }
+        }
+        
+        res.json(health);
+    } catch (error) {
+        console.error('Error in health check:', error);
+        res.status(500).json({ 
+            status: 'unhealthy',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Get current cache strategy and status
+app.get('/api/cache/strategy', (req, res) => {
+    try {
+        const response = {
+            currentStrategy: activeCacheType,
+            configuredStrategy: config.cacheStrategy,
+            loadFailed: activeCacheLoadFailed,
+            isLoaded: activeCacheType === 'optimized' ? optimizedCache.isLoaded : dbCache.isLoaded,
+            availableStrategies: ['optimized', 'legacy', 'full'],
+            timestamp: new Date().toISOString()
+        };
+        
+        res.json(response);
+    } catch (error) {
+        console.error('Error retrieving cache strategy:', error);
+        res.status(500).json({ 
+            error: 'Failed to retrieve cache strategy',
+            details: error.message 
+        });
+    }
+});
+
+// Switch cache strategy at runtime
+app.post('/api/cache/strategy', async (req, res) => {
+    const { strategy } = req.body;
+    
+    if (!strategy) {
+        return res.status(400).json({ 
+            error: 'Strategy parameter is required',
+            availableStrategies: ['optimized', 'legacy', 'full']
+        });
+    }
+    
+    // Normalize strategy name
+    const normalizedStrategy = strategy.toLowerCase();
+    
+    if (!['optimized', 'legacy', 'full'].includes(normalizedStrategy)) {
+        return res.status(400).json({ 
+            error: 'Invalid strategy',
+            provided: strategy,
+            availableStrategies: ['optimized', 'legacy', 'full']
+        });
+    }
+    
+    try {
+        console.log(`🔄 API request to switch cache strategy to: ${normalizedStrategy}`);
+        
+        const result = await switchCacheStrategy(normalizedStrategy);
+        
+        res.json({
+            success: true,
+            message: `Successfully switched cache strategy to ${normalizedStrategy}`,
+            previousStrategy: result.previousStrategy,
+            currentStrategy: result.currentStrategy,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('Error switching cache strategy:', error);
+        res.status(500).json({ 
+            error: 'Failed to switch cache strategy',
+            details: error.message,
+            currentStrategy: activeCacheType
+        });
+    }
+});
+
+// Test cache performance (for migration validation)
+app.get('/api/cache/test', async (req, res) => {
+    try {
+        const testResults = {
+            cacheType: activeCacheType,
+            timestamp: new Date().toISOString(),
+            tests: {}
+        };
+        
+        // Test 1: Get cache size
+        const startSize = Date.now();
+        const cacheSize = activeCacheType === 'optimized' 
+            ? optimizedCache.size() 
+            : (dbCache.isLoaded ? dbCache.allFiles.length : 0);
+        testResults.tests.cacheSize = {
+            duration: Date.now() - startSize,
+            result: cacheSize
+        };
+        
+        // Test 2: Search performance (if cache is loaded)
+        if ((activeCacheType === 'optimized' && optimizedCache.isLoaded) || 
+            (activeCacheType === 'legacy' && dbCache.isLoaded)) {
+            
+            const startSearch = Date.now();
+            const searchResults = activeCacheType === 'optimized'
+                ? await optimizedCache.search('test', 100)
+                : dbCache.search('test').slice(0, 100);
+            testResults.tests.search = {
+                duration: Date.now() - startSearch,
+                resultCount: searchResults.length
+            };
+        }
+        
+        // Test 3: Memory usage
+        const memoryUsage = process.memoryUsage();
+        testResults.tests.memory = {
+            heapUsedMB: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+            heapTotalMB: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+            rssMB: Math.round(memoryUsage.rss / 1024 / 1024)
+        };
+        
+        // Test 4: Cache stats
+        if (activeCacheType === 'optimized' && optimizedCache.isLoaded) {
+            testResults.tests.cacheStats = optimizedCache.getStats();
+        }
+        
+        res.json(testResults);
+        
+    } catch (error) {
+        console.error('Error testing cache:', error);
+        res.status(500).json({ 
+            error: 'Failed to test cache',
+            details: error.message 
+        });
+    }
 });
 
 // Get scan history
@@ -2022,9 +3168,17 @@ app.post('/api/clear', (req, res) => {
                 }
                 
                 // Clear cache after database clear
-                queryCache.clear();
-                dbCache.invalidate();
-                console.log('🔄 Cache cleared after database clear');
+                if (queryCache) {
+                    queryCache.clear();
+                }
+                
+                if (USE_OPTIMIZED_CACHE) {
+                    optimizedCache.invalidate();
+                    console.log('🔄 OptimizedDatabaseCache cleared after database clear');
+                } else {
+                    dbCache.invalidate();
+                    console.log('🔄 DatabaseCache cleared after database clear');
+                }
                 
                 sendResponse(200, { 
                     message: `База данных полностью очищена. Удалено ${deletedCount.count} записей. Файл базы данных физически сжат.` 
@@ -2037,56 +3191,26 @@ app.post('/api/clear', (req, res) => {
 // Compact database - force shrink database file
 app.post('/api/compact', (req, res) => {
     console.log('🗜️ Starting database compaction...');
-    let responseSent = false;
-    
-    const sendResponse = (statusCode, data) => {
-        if (!responseSent) {
-            responseSent = true;
-            if (statusCode === 200) {
-                res.json(data);
-            } else {
-                res.status(statusCode).json(data);
-            }
-        }
-    };
     
     db.serialize(() => {
-        // Force WAL checkpoint first
+        // Force WAL checkpoint to merge WAL file into main database
         db.run('PRAGMA wal_checkpoint(TRUNCATE)', function(err) {
             if (err) {
                 console.error('❌ WAL checkpoint failed:', err.message);
-            } else {
-                console.log('📝 WAL checkpoint completed');
+                return res.status(500).json({ error: `Ошибка checkpoint: ${err.message}` });
             }
-        });
-        
-        // Switch to DELETE mode to force WAL checkpoint
-        db.run('PRAGMA journal_mode = DELETE', function(err) {
-            if (err) {
-                console.error('❌ Failed to switch journal mode:', err.message);
-                return sendResponse(500, { error: `Не удалось переключить режим журнала: ${err.message}` });
-            }
-            console.log('📝 Switched to DELETE journal mode');
-        });
-        
-        // Run VACUUM to compact the database
-        db.run('VACUUM', function(err) {
-            if (err) {
-                console.error('❌ VACUUM failed:', err.message);
-                return sendResponse(500, { error: `Не удалось сжать базу данных: ${err.message}` });
-            }
-            console.log('✅ Database compacted successfully');
+            console.log('✅ WAL checkpoint completed');
             
-            // Switch back to WAL mode
-            db.run('PRAGMA journal_mode = WAL', function(walErr) {
-                if (walErr) {
-                    console.error('❌ Failed to switch back to WAL mode:', walErr.message);
+            // Optimize database (similar to VACUUM but works with WAL mode)
+            db.run('PRAGMA optimize', function(optimizeErr) {
+                if (optimizeErr) {
+                    console.error('❌ Optimize failed:', optimizeErr.message);
                 } else {
-                    console.log('📝 Switched back to WAL journal mode');
+                    console.log('✅ Database optimized');
                 }
                 
-                sendResponse(200, { 
-                    message: 'База данных успешно сжата. Размер файла оптимизирован.' 
+                res.json({ 
+                    message: 'База данных успешно оптимизирована. WAL файл объединен с основной базой.' 
                 });
             });
         });
@@ -2094,32 +3218,425 @@ app.post('/api/compact', (req, res) => {
 });
 
 // Backup database
-app.post('/api/backup', (req, res) => {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupPath = `./backup_${timestamp}.json`;
-    
-    db.all('SELECT * FROM files', (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
+// Backup database files (filestash.db, filestash.db-shm, filestash.db-wal)
+app.post('/api/database/backup', async (req, res) => {
+    try {
+        // Ensure backups directory exists
+        await fse.ensureDir('./backups');
+        
+        console.log('📦 Starting database files backup...');
+        
+        // Generate backup name with timestamp
+        const now = new Date();
+        const dateStr = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()}`;
+        const timeStr = `${now.getHours().toString().padStart(2, '0')}-${now.getMinutes().toString().padStart(2, '0')}-${now.getSeconds().toString().padStart(2, '0')}`;
+        const backupName = `database_backup_${dateStr}_${timeStr}`;
+        const backupPath = path.join('./backups', `${backupName}.7z`);
+        
+        // Check if 7-Zip is available
+        const archiverFor7z = await archiverManager.getArchiverForFormat('7z');
+        if (!archiverFor7z) {
+            return res.status(500).json({ 
+                error: '7-Zip не найден. Установите 7-Zip для создания резервных копий.' 
+            });
         }
         
-        try {
-            fs.writeFileSync(backupPath, JSON.stringify(rows, null, 2));
-            res.json({ 
-                message: 'Резервная копия создана успешно',
-                filename: path.basename(backupPath),
-                path: backupPath,
-                records: rows.length
-            });
-        } catch (error) {
-            res.status(500).json({ error: error.message });
+        // List of database files to backup
+        const dbFiles = [
+            './filestash.db',
+            './filestash.db-shm',
+            './filestash.db-wal'
+        ];
+        
+        // Filter only existing files
+        const existingFiles = dbFiles.filter(file => fs.existsSync(file));
+        
+        if (existingFiles.length === 0) {
+            return res.status(404).json({ error: 'Файлы базы данных не найдены' });
         }
-    });
+        
+        console.log(`📦 Backing up ${existingFiles.length} database files...`);
+        
+        // Create temporary directory for database copies
+        const tempDir = path.join(os.tmpdir(), `db_backup_${Date.now()}`);
+        await fse.ensureDir(tempDir);
+        
+        console.log('📦 Copying database files to temporary directory...');
+        const tempFiles = [];
+        
+        try {
+            // Copy each database file to temp directory
+            for (const dbFile of existingFiles) {
+                const fileName = path.basename(dbFile);
+                const tempFile = path.join(tempDir, fileName);
+                await fse.copy(dbFile, tempFile);
+                tempFiles.push(tempFile);
+                console.log(`✅ Copied: ${fileName}`);
+            }
+            
+            console.log('📦 Creating archive from copies...');
+            
+            // Create archive using createArchiveWithProgress
+            const { createArchiveWithProgress } = require('./archive-with-progress');
+            
+            const result = await createArchiveWithProgress({
+                filePaths: tempFiles,
+                archivePath: backupPath,
+                archiverPath: archiverFor7z.path,
+                archiverType: archiverFor7z.archiver,
+                format: '7z',
+                compression: '5', // Normal compression (balance between speed and size)
+                onProgress: (progress) => {
+                    console.log(`Backup progress: ${progress.progress}%`);
+                },
+                onConsoleOutput: (line) => {
+                    console.log(`Backup: ${line}`);
+                }
+            });
+            
+            // Clean up temp directory
+            await fse.remove(tempDir);
+            console.log('✅ Temporary files cleaned up');
+            
+        } catch (error) {
+            // Clean up temp directory on error
+            await fse.remove(tempDir);
+            throw error;
+        }
+        
+        // Get archive stats
+        const archiveStats = fs.statSync(backupPath);
+        
+        console.log(`✅ Database backup completed successfully`);
+        
+        res.json({
+            success: true,
+            filename: `${backupName}.7z`,
+            archivePath: backupPath,
+            archiveSize: archiveStats.size,
+            filesBackedUp: existingFiles.length,
+            timestamp: now.toISOString()
+        });
+        
+    } catch (error) {
+        console.error('Backup error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// Restore database from backup
-app.post('/api/restore', (req, res) => {
-    const { backupFile, mode } = req.body;
+// Restore database from backup archive
+app.post('/api/database/restore', async (req, res) => {
+    try {
+        const { filename } = req.body;
+        
+        if (!filename) {
+            return res.status(400).json({ error: 'Filename is required' });
+        }
+        
+        const backupPath = path.join('./backups', filename);
+        
+        if (!fs.existsSync(backupPath)) {
+            return res.status(404).json({ error: 'Backup file not found' });
+        }
+        
+        console.log(`📥 Restoring database from: ${filename}`);
+        
+        // Check if 7-Zip is available
+        const archiverFor7z = await archiverManager.getArchiverForFormat('7z');
+        if (!archiverFor7z) {
+            return res.status(500).json({ 
+                error: '7-Zip не найден. Установите 7-Zip для восстановления из резервных копий.' 
+            });
+        }
+        
+        // Create temporary extraction directory
+        const tempDir = path.join(os.tmpdir(), `db_restore_${Date.now()}`);
+        await fse.ensureDir(tempDir);
+        
+        try {
+            // Extract archive using 7-Zip
+            const { spawn } = require('child_process');
+            const extractProcess = spawn(archiverFor7z.path, [
+                'x',                    // Extract
+                '-y',                   // Yes to all prompts
+                `-o${tempDir}`,         // Output directory
+                backupPath              // Archive path
+            ]);
+            
+            await new Promise((resolve, reject) => {
+                extractProcess.on('close', (code) => {
+                    if (code === 0) {
+                        resolve();
+                    } else {
+                        reject(new Error(`Extraction failed with code ${code}`));
+                    }
+                });
+                
+                extractProcess.on('error', reject);
+            });
+            
+            console.log('✅ Archive extracted successfully');
+            
+            // Close database connections
+            console.log('📦 Closing database connections...');
+            await new Promise((resolve) => {
+                db.close(() => {
+                    console.log('✅ Database closed');
+                    resolve();
+                });
+            });
+            
+            // Copy extracted files to root directory
+            const dbFiles = ['filestash.db', 'filestash.db-shm', 'filestash.db-wal'];
+            let restoredCount = 0;
+            
+            for (const dbFile of dbFiles) {
+                const sourcePath = path.join(tempDir, dbFile);
+                const destPath = path.join('./', dbFile);
+                
+                if (fs.existsSync(sourcePath)) {
+                    await fse.copy(sourcePath, destPath, { overwrite: true });
+                    console.log(`✅ Restored: ${dbFile}`);
+                    restoredCount++;
+                }
+            }
+            
+            // Reopen database
+            const sqlite3 = require('sqlite3').verbose();
+            global.db = new sqlite3.Database('./filestash.db', sqlite3.OPEN_READWRITE);
+            
+            // Clean up temp directory
+            await fse.remove(tempDir);
+            
+            console.log(`✅ Database restored successfully (${restoredCount} files)`);
+            
+            res.json({
+                success: true,
+                filesRestored: restoredCount,
+                message: 'Database restored successfully'
+            });
+            
+        } catch (extractError) {
+            // Clean up temp directory on error
+            await fse.remove(tempDir);
+            throw extractError;
+        }
+        
+    } catch (error) {
+        console.error('Restore error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Old backup endpoint (keep for compatibility)
+app.post('/api/backup', async (req, res) => {
+    try {
+        // Ensure backups directory exists
+        if (!fs.existsSync('./backups')) {
+            fs.mkdirSync('./backups');
+        }
+        
+        console.log('📦 Starting database backup...');
+        
+        // Format date as DD.MM.YYYY.HH-MM
+        const now = new Date();
+        const dateStr = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}.${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
+        const backupName = `filestash_database_backup(${dateStr})`;
+        const backupPath = `./backups/${backupName}.rar`;
+        
+        // Check if WinRAR is available
+        const winrarPath = await findWinRAR();
+        if (!winrarPath) {
+            return res.status(500).json({ 
+                error: 'WinRAR не найден. Установите WinRAR для создания резервных копий.' 
+            });
+        }
+        
+        // Get database file info before backup
+        const dbStats = fs.statSync('./filestash.db');
+        const dbSize = dbStats.size;
+        
+        // Get record count
+        const recordCount = await new Promise((resolve, reject) => {
+            db.get('SELECT COUNT(*) as count FROM files', (err, row) => {
+                if (err) reject(err);
+                else resolve(row.count);
+            });
+        });
+        
+        // Close database connections temporarily to ensure clean backup
+        console.log('📦 Closing database connections...');
+        await new Promise((resolve) => {
+            db.close(() => {
+                console.log('✅ Database closed');
+                resolve();
+            });
+        });
+        
+        // Reopen database
+        const sqlite3 = require('sqlite3').verbose();
+        db = new sqlite3.Database('./filestash.db', sqlite3.OPEN_READWRITE);
+        
+        // Create RAR archive with maximum compression
+        // -m5 = maximum compression
+        // -ma5 = RAR5 format
+        // -ep1 = exclude base folder from paths
+        const rarArgs = [
+            'a',                    // Add to archive
+            '-m5',                  // Maximum compression
+            '-ma5',                 // RAR5 format
+            '-ep1',                 // Exclude base folder
+            '-y',                   // Yes to all
+            backupPath,
+            './filestash.db',
+            './filestash.db-shm',
+            './filestash.db-wal'
+        ];
+        
+        console.log(`📦 Creating RAR archive: ${backupName}.rar`);
+        console.log(`   Command: "${winrarPath}" ${rarArgs.join(' ')}`);
+        
+        const { spawn } = require('child_process');
+        const rarProcess = spawn(winrarPath, rarArgs);
+        
+        let output = '';
+        let errorOutput = '';
+        
+        rarProcess.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+        
+        rarProcess.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+        });
+        
+        await new Promise((resolve, reject) => {
+            rarProcess.on('close', (code) => {
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(`WinRAR exited with code ${code}: ${errorOutput}`));
+                }
+            });
+            
+            rarProcess.on('error', (err) => {
+                reject(err);
+            });
+        });
+        
+        // Get archive size
+        const archiveStats = fs.statSync(backupPath);
+        const archiveSize = archiveStats.size;
+        const compressionRatio = ((1 - archiveSize / dbSize) * 100).toFixed(1);
+        
+        console.log(`✅ Backup completed:`);
+        console.log(`   Archive: ${backupName}.rar`);
+        console.log(`   Original size: ${(dbSize / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`   Archive size: ${(archiveSize / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`   Compression: ${compressionRatio}%`);
+        console.log(`   Records: ${recordCount}`);
+        
+        res.json({ 
+            message: 'Резервная копия создана успешно',
+            filename: `${backupName}.rar`,
+            path: backupPath,
+            records: recordCount,
+            originalSize: dbSize,
+            archiveSize: archiveSize,
+            compressionRatio: parseFloat(compressionRatio)
+        });
+        
+    } catch (error) {
+        console.error('❌ Backup failed:', error);
+        
+        // Ensure database is reopened even if backup fails
+        if (!db || !db.open) {
+            const sqlite3 = require('sqlite3').verbose();
+            db = new sqlite3.Database('./filestash.db', sqlite3.OPEN_READWRITE);
+        }
+        
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete backup
+app.post('/api/backups/delete', async (req, res) => {
+    try {
+        const { filename } = req.body;
+        
+        if (!filename || !filename.endsWith('.rar')) {
+            return res.status(400).json({ error: 'Invalid filename' });
+        }
+        
+        const backupPath = path.join('./backups', filename);
+        
+        // Security check - ensure file is in backups directory
+        if (!backupPath.startsWith('./backups')) {
+            return res.status(400).json({ error: 'Invalid path' });
+        }
+        
+        if (!fs.existsSync(backupPath)) {
+            return res.status(404).json({ error: 'Backup not found' });
+        }
+        
+        fs.unlinkSync(backupPath);
+        console.log(`🗑️ Deleted backup: ${filename}`);
+        
+        res.json({ message: 'Backup deleted successfully' });
+        
+    } catch (error) {
+        console.error('❌ Failed to delete backup:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get list of available backups
+app.get('/api/backups/list', async (req, res) => {
+    try {
+        const backupsDir = './backups';
+        
+        // Ensure backups directory exists
+        if (!fs.existsSync(backupsDir)) {
+            return res.json({ backups: [] });
+        }
+        
+        // Read all RAR files in backups directory
+        const files = fs.readdirSync(backupsDir)
+            .filter(file => file.endsWith('.rar'))
+            .map(file => {
+                const filePath = path.join(backupsDir, file);
+                const stats = fs.statSync(filePath);
+                
+                // Parse date from filename: filestash_database_backup(DD.MM.YYYY.HH-MM).rar
+                const dateMatch = file.match(/\((\d{2})\.(\d{2})\.(\d{4})\.(\d{2})-(\d{2})\)/);
+                let createdDate = stats.mtime;
+                
+                if (dateMatch) {
+                    const [, day, month, year, hour, minute] = dateMatch;
+                    createdDate = new Date(year, month - 1, day, hour, minute);
+                }
+                
+                return {
+                    filename: file,
+                    path: filePath,
+                    size: stats.size,
+                    created: createdDate.toISOString(),
+                    createdFormatted: createdDate.toLocaleString('ru-RU')
+                };
+            })
+            .sort((a, b) => new Date(b.created) - new Date(a.created)); // Newest first
+        
+        res.json({ backups: files });
+        
+    } catch (error) {
+        console.error('❌ Failed to list backups:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Restore database from RAR backup
+app.post('/api/restore', async (req, res) => {
+    const { backupFile } = req.body;
     
     if (!backupFile) {
         return res.status(400).json({ error: 'Backup file path is required' });
@@ -2480,6 +3997,18 @@ app.post('/api/files/move', async (req, res) => {
             }
         }
         
+        // Invalidate caches after move operation (database was updated)
+        // Use selective invalidation for moved files
+        const movedPaths = results
+            .filter(r => r.status === 'success' && r.path)
+            .map(r => r.path);
+        
+        if (movedPaths.length > 0 && USE_OPTIMIZED_CACHE) {
+            await invalidateDatabaseCaches({ paths: movedPaths, fullReload: false });
+        } else {
+            await invalidateDatabaseCaches();
+        }
+        
         console.log('Move operation completed, results:', results);
         res.json({ message: 'Move operation completed', results });
     } catch (error) {
@@ -2529,6 +4058,7 @@ app.post('/api/files/delete', async (req, res) => {
             }
         }
         
+        // Use full reload for delete operations since we need to rebuild indexes
         await invalidateDatabaseCaches();
         res.json({ message: 'Delete operation completed', results });
     } catch (error) {
@@ -2616,7 +4146,25 @@ app.post('/api/files/delete-enhanced', async (req, res) => {
             }
         }
         
-        await invalidateDatabaseCaches();
+        // Use selective invalidation for deleted directories
+        const deletedDirs = results
+            .filter(r => r.status === 'success' && r.type === 'directory' && r.path)
+            .map(r => r.path);
+        
+        const deletedFiles = results
+            .filter(r => r.status === 'success' && r.type === 'file' && r.path)
+            .map(r => r.path);
+        
+        if ((deletedDirs.length > 0 || deletedFiles.length > 0) && USE_OPTIMIZED_CACHE) {
+            await invalidateDatabaseCaches({ 
+                directories: deletedDirs, 
+                paths: deletedFiles, 
+                fullReload: false 
+            });
+        } else {
+            await invalidateDatabaseCaches();
+        }
+        
         res.json({ message: 'Enhanced delete operation completed', results });
         
     } catch (error) {
@@ -2636,9 +4184,20 @@ app.post('/api/files/remove-from-database', async (req, res) => {
     try {
         console.log('Removing files from database:', fileIds);
         
+        // Get file paths before deletion for selective invalidation
+        const selectPlaceholders = fileIds.map(() => '?').join(',');
+        const selectQuery = `SELECT full_path, is_directory FROM files WHERE id IN (${selectPlaceholders})`;
+        
+        const filesToRemove = await new Promise((resolve, reject) => {
+            db.all(selectQuery, fileIds, (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
+        });
+        
         // Remove files from database
-        const placeholders = fileIds.map(() => '?').join(',');
-        const deleteQuery = `DELETE FROM files WHERE id IN (${placeholders})`;
+        const deletePlaceholders = fileIds.map(() => '?').join(',');
+        const deleteQuery = `DELETE FROM files WHERE id IN (${deletePlaceholders})`;
         
         await new Promise((resolve, reject) => {
             db.run(deleteQuery, fileIds, function(err) {
@@ -2651,7 +4210,25 @@ app.post('/api/files/remove-from-database', async (req, res) => {
             });
         });
         
-        await invalidateDatabaseCaches();
+        // Use selective invalidation for removed files
+        const removedDirs = filesToRemove
+            .filter(f => f.is_directory === 1)
+            .map(f => f.full_path);
+        
+        const removedFiles = filesToRemove
+            .filter(f => f.is_directory === 0)
+            .map(f => f.full_path);
+        
+        if ((removedDirs.length > 0 || removedFiles.length > 0) && USE_OPTIMIZED_CACHE) {
+            await invalidateDatabaseCaches({ 
+                directories: removedDirs, 
+                paths: removedFiles, 
+                fullReload: false 
+            });
+        } else {
+            await invalidateDatabaseCaches();
+        }
+        
         res.json({ 
             message: 'Files removed from database successfully',
             removedCount: fileIds.length
@@ -2760,6 +4337,7 @@ app.post('/api/files/cleanup-database', async (req, res) => {
             });
         }
         
+        // Use full reload for cleanup operations since many files may be affected
         if (filesToRemove.length > 0) {
             await invalidateDatabaseCaches();
         }
@@ -3210,6 +4788,49 @@ app.post('/api/database/integrity-check', async (req, res) => {
     }
 });
 
+// Helper function to calculate string similarity (0-1 scale)
+function calculateStringSimilarity(str1, str2) {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    
+    if (longer.length === 0) {
+        return 1.0;
+    }
+    
+    // Calculate Levenshtein distance
+    const editDistance = levenshteinDistance(longer.toLowerCase(), shorter.toLowerCase());
+    return (longer.length - editDistance) / longer.length;
+}
+
+// Levenshtein distance algorithm
+function levenshteinDistance(str1, str2) {
+    const matrix = [];
+    
+    for (let i = 0; i <= str2.length; i++) {
+        matrix[i] = [i];
+    }
+    
+    for (let j = 0; j <= str1.length; j++) {
+        matrix[0][j] = j;
+    }
+    
+    for (let i = 1; i <= str2.length; i++) {
+        for (let j = 1; j <= str1.length; j++) {
+            if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1, // substitution
+                    matrix[i][j - 1] + 1,     // insertion
+                    matrix[i - 1][j] + 1      // deletion
+                );
+            }
+        }
+    }
+    
+    return matrix[str2.length][str1.length];
+}
+
 // Async database integrity check function
 async function performDatabaseIntegrityCheckAsync(checkId, files) {
     const progress = integrityProgress.get(checkId);
@@ -3223,7 +4844,11 @@ async function performDatabaseIntegrityCheckAsync(checkId, files) {
     
     try {
         const missingFiles = [];
+        const renamedFiles = [];
         let checkedCount = 0;
+        
+        // Build CRC32 index for non-missing files (for renamed detection)
+        const crc32Index = new Map();
         
         // Check each file/directory existence
         for (const file of files) {
@@ -3237,14 +4862,178 @@ async function performDatabaseIntegrityCheckAsync(checkId, files) {
             }
             
             try {
-                if (!fs.existsSync(file.full_path)) {
-                    missingFiles.push({
-                        id: file.id,
-                        path: file.full_path,
-                        filename: file.filename,
-                        isDirectory: file.is_directory === 1
-                    });
-                    console.log(`❌ Missing: ${file.full_path}`);
+                const exists = fs.existsSync(file.full_path);
+                
+                if (!exists) {
+                    // File doesn't exist at recorded path
+                    // Check if it might be renamed (for files with CRC32)
+                    if (file.crc32 && file.is_directory === 0) {
+                        // Look for files with same CRC32 in parent directory
+                        const parentDir = path.dirname(file.full_path);
+                        
+                        try {
+                            if (fs.existsSync(parentDir)) {
+                                const filesInDir = fs.readdirSync(parentDir);
+                                let foundRenamed = false;
+                                
+                                for (const filename of filesInDir) {
+                                    const fullPath = path.join(parentDir, filename);
+                                    
+                                    try {
+                                        const stats = fs.statSync(fullPath);
+                                        
+                                        // Only check files with similar size (±10%)
+                                        if (stats.isFile() && 
+                                            Math.abs(stats.size - file.size) / file.size < 0.1) {
+                                            
+                                            // Check if this file exists in database
+                                            const existingFile = files.find(f => f.full_path === fullPath);
+                                            
+                                            if (!existingFile) {
+                                                // Potential renamed file found
+                                                renamedFiles.push({
+                                                    id: file.id,
+                                                    oldPath: file.full_path,
+                                                    oldFilename: file.filename,
+                                                    possibleNewPath: fullPath,
+                                                    possibleNewFilename: filename,
+                                                    size: file.size,
+                                                    crc32: file.crc32,
+                                                    isDirectory: false,
+                                                    confidence: 'high' // Same parent dir, similar size
+                                                });
+                                                foundRenamed = true;
+                                                console.log(`🔄 Possibly renamed: ${file.filename} → ${filename}`);
+                                                break;
+                                            }
+                                        }
+                                    } catch (err) {
+                                        // Skip files we can't access
+                                    }
+                                }
+                                
+                                if (!foundRenamed) {
+                                    // Not found in same directory, mark as missing
+                                    missingFiles.push({
+                                        id: file.id,
+                                        path: file.full_path,
+                                        filename: file.filename,
+                                        isDirectory: file.is_directory === 1
+                                    });
+                                    console.log(`❌ Missing: ${file.full_path}`);
+                                }
+                            } else {
+                                // Parent directory doesn't exist
+                                missingFiles.push({
+                                    id: file.id,
+                                    path: file.full_path,
+                                    filename: file.filename,
+                                    isDirectory: file.is_directory === 1,
+                                    reason: 'parent_directory_missing'
+                                });
+                                console.log(`❌ Missing (parent dir gone): ${file.full_path}`);
+                            }
+                        } catch (err) {
+                            // Can't read directory
+                            missingFiles.push({
+                                id: file.id,
+                                path: file.full_path,
+                                filename: file.filename,
+                                isDirectory: file.is_directory === 1,
+                                error: err.message
+                            });
+                            console.log(`❌ Error checking ${file.full_path}: ${err.message}`);
+                        }
+                    } else if (file.is_directory === 1) {
+                        // Directory - check for renamed directories
+                        const parentDir = path.dirname(file.full_path);
+                        
+                        try {
+                            if (fs.existsSync(parentDir)) {
+                                const dirsInParent = fs.readdirSync(parentDir);
+                                let foundRenamed = false;
+                                
+                                // Look for directories with similar names
+                                for (const dirname of dirsInParent) {
+                                    const fullPath = path.join(parentDir, dirname);
+                                    
+                                    try {
+                                        const stats = fs.statSync(fullPath);
+                                        
+                                        if (stats.isDirectory()) {
+                                            // Check if this directory exists in database
+                                            const existingDir = files.find(f => f.full_path === fullPath);
+                                            
+                                            if (!existingDir) {
+                                                // Calculate similarity (simple Levenshtein-like check)
+                                                const similarity = calculateStringSimilarity(file.filename, dirname);
+                                                
+                                                if (similarity > 0.6) { // 60% similarity threshold
+                                                    renamedFiles.push({
+                                                        id: file.id,
+                                                        oldPath: file.full_path,
+                                                        oldFilename: file.filename,
+                                                        possibleNewPath: fullPath,
+                                                        possibleNewFilename: dirname,
+                                                        isDirectory: true,
+                                                        confidence: similarity > 0.8 ? 'high' : 'medium',
+                                                        similarity: Math.round(similarity * 100)
+                                                    });
+                                                    foundRenamed = true;
+                                                    console.log(`🔄 Possibly renamed directory: ${file.filename} → ${dirname} (${Math.round(similarity * 100)}% similar)`);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    } catch (err) {
+                                        // Skip directories we can't access
+                                    }
+                                }
+                                
+                                if (!foundRenamed) {
+                                    missingFiles.push({
+                                        id: file.id,
+                                        path: file.full_path,
+                                        filename: file.filename,
+                                        isDirectory: true
+                                    });
+                                    console.log(`❌ Missing directory: ${file.full_path}`);
+                                }
+                            } else {
+                                missingFiles.push({
+                                    id: file.id,
+                                    path: file.full_path,
+                                    filename: file.filename,
+                                    isDirectory: true,
+                                    reason: 'parent_directory_missing'
+                                });
+                                console.log(`❌ Missing directory (parent gone): ${file.full_path}`);
+                            }
+                        } catch (err) {
+                            missingFiles.push({
+                                id: file.id,
+                                path: file.full_path,
+                                filename: file.filename,
+                                isDirectory: true,
+                                error: err.message
+                            });
+                            console.log(`❌ Error checking directory ${file.full_path}: ${err.message}`);
+                        }
+                    } else {
+                        // File without CRC32
+                        missingFiles.push({
+                            id: file.id,
+                            path: file.full_path,
+                            filename: file.filename,
+                            isDirectory: false
+                        });
+                        console.log(`❌ Missing file: ${file.full_path}`);
+                    }
+                } else {
+                    // File exists, add to CRC32 index if available
+                    if (file.crc32) {
+                        crc32Index.set(file.crc32, file.full_path);
+                    }
                 }
             } catch (error) {
                 // If we can't check, assume it doesn't exist
@@ -3268,17 +5057,64 @@ async function performDatabaseIntegrityCheckAsync(checkId, files) {
             }
         }
         
-        // Generate missed_files.txt report
-        const reportContent = missingFiles.map(file => {
+        // Generate comprehensive report
+        const reportLines = [];
+        
+        reportLines.push('='.repeat(80));
+        reportLines.push('DATABASE INTEGRITY CHECK REPORT');
+        reportLines.push('='.repeat(80));
+        reportLines.push(`Date: ${new Date().toISOString()}`);
+        reportLines.push(`Total Checked: ${files.length}`);
+        reportLines.push(`Missing: ${missingFiles.length}`);
+        reportLines.push(`Possibly Renamed: ${renamedFiles.length}`);
+        reportLines.push('='.repeat(80));
+        reportLines.push('');
+        
+        if (renamedFiles.length > 0) {
+            reportLines.push('POSSIBLY RENAMED FILES/DIRECTORIES:');
+            reportLines.push('-'.repeat(80));
+            renamedFiles.forEach(file => {
+                const type = file.isDirectory ? '[DIR]' : '[FILE]';
+                const confidence = file.confidence === 'high' ? '⭐⭐⭐' : '⭐⭐';
+                reportLines.push(`${type} ${confidence} ${file.oldFilename}`);
+                reportLines.push(`  Old: ${file.oldPath}`);
+                reportLines.push(`  New: ${file.possibleNewPath}`);
+                if (file.similarity) {
+                    reportLines.push(`  Similarity: ${file.similarity}%`);
+                }
+                reportLines.push('');
+            });
+            reportLines.push('');
+        }
+        
+        if (missingFiles.length > 0) {
+            reportLines.push('MISSING FILES/DIRECTORIES:');
+            reportLines.push('-'.repeat(80));
+            missingFiles.forEach(file => {
+                const prefix = file.isDirectory ? '[DIR]' : '[FILE]';
+                reportLines.push(`${prefix} ${file.path}`);
+                if (file.reason) {
+                    reportLines.push(`  Reason: ${file.reason}`);
+                }
+                if (file.error) {
+                    reportLines.push(`  Error: ${file.error}`);
+                }
+            });
+        }
+        
+        const reportContent = reportLines.join('\n');
+        const reportPath = './integrity_check_report.txt';
+        await fse.writeFile(reportPath, reportContent);
+        
+        // Also save simple missed_files.txt for backward compatibility
+        const simpleReport = missingFiles.map(file => {
             const prefix = file.isDirectory ? '[DIR]' : '[FILE]';
             return `${prefix} ${file.path}`;
         }).join('\n');
+        await fse.writeFile('./missed_files.txt', simpleReport);
         
-        const reportPath = './missed_files.txt';
-        await fse.writeFile(reportPath, reportContent);
-        
-        console.log(`📄 Missing files report saved to: ${reportPath}`);
-        console.log(`✅ Database integrity check completed. Found ${missingFiles.length} missing files out of ${files.length} checked.`);
+        console.log(`📄 Integrity check report saved to: ${reportPath}`);
+        console.log(`✅ Database integrity check completed. Found ${missingFiles.length} missing and ${renamedFiles.length} possibly renamed files out of ${files.length} checked.`);
         
         // Update progress to completed
         progress.status = 'completed';
@@ -3286,9 +5122,13 @@ async function performDatabaseIntegrityCheckAsync(checkId, files) {
         progress.results = {
             totalChecked: files.length,
             missingCount: missingFiles.length,
+            renamedCount: renamedFiles.length,
             reportFile: reportPath,
-            missingFiles: missingFiles
+            missingFiles: missingFiles,
+            renamedFiles: renamedFiles
         };
+        
+        console.log(`🔄 Found ${renamedFiles.length} possibly renamed files`);
         
     } catch (error) {
         console.error('❌ Database integrity check failed:', error);
@@ -3300,172 +5140,263 @@ async function performDatabaseIntegrityCheckAsync(checkId, files) {
 
 
 
-// Check for external archivers
-function checkArchivers() {
-    const { execSync } = require('child_process');
-    const archivers = {};
-    
-    // Check for 7-Zip
-    try {
-        execSync('7z', { stdio: 'ignore' });
-        archivers['7zip'] = '7z';
-    } catch (e) {
-        try {
-            execSync('"C:\\Program Files\\7-Zip\\7z.exe"', { stdio: 'ignore' });
-            archivers['7zip'] = '"C:\\Program Files\\7-Zip\\7z.exe"';
-        } catch (e2) {
-            // 7-Zip not found
-        }
-    }
-    
-    // Check for WinRAR
-    try {
-        execSync('winrar', { stdio: 'ignore' });
-        archivers['winrar'] = 'winrar';
-    } catch (e) {
-        try {
-            execSync('"C:\\Program Files\\WinRAR\\WinRAR.exe"', { stdio: 'ignore' });
-            archivers['winrar'] = '"C:\\Program Files\\WinRAR\\WinRAR.exe"';
-        } catch (e2) {
-            // WinRAR not found
-        }
-    }
-    
-    return archivers;
+// checkArchivers function removed - now using ArchiverManager
+
+// Helper function to find WinRAR using ArchiverManager
+async function findWinRAR() {
+    const archiverInfo = await archiverManager.getArchiverForFormat('rar');
+    return archiverInfo ? archiverInfo.path : null;
 }
 
 // Get available archivers
-app.get('/api/archivers', (req, res) => {
-    const archivers = checkArchivers();
-    res.json({ archivers: Object.keys(archivers), available: Object.keys(archivers).length > 0 });
+app.get('/api/archivers', async (req, res) => {
+    try {
+        const archiverInfo = await archiverManager.getArchiverInfo();
+        const supportedFormats = await archiverManager.getSupportedFormats();
+        
+        res.json({
+            archivers: archiverInfo.archivers,
+            formats: archiverInfo.formats,
+            supportedFormats: supportedFormats,
+            available: supportedFormats.length > 0
+        });
+    } catch (error) {
+        console.error('Error getting archiver info:', error);
+        res.status(500).json({ error: 'Failed to get archiver information' });
+    }
 });
 
-// Archive files with external tools
+// Archive files with external tools (with progress tracking)
 app.post('/api/files/archive', async (req, res) => {
-    const { fileIds, archiveName, archiver: selectedArchiver, destinationPath } = req.body;
+    const { fileIds, archiveName, destinationPath, format, password, volumeSize, compression } = req.body;
     
     if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
         return res.status(400).json({ error: 'File IDs are required' });
     }
     
+    // Validate and default format
+    const requestedFormat = format || '7z';
+    const validFormats = ['zip', 'rar', '7z'];
+    
+    if (!validFormats.includes(requestedFormat)) {
+        return res.status(400).json({ 
+            error: `Invalid format '${requestedFormat}'. Supported formats: ${validFormats.join(', ')}` 
+        });
+    }
+    
+    // Check if archiver for requested format is available
+    const archiverForFormat = await archiverManager.getArchiverForFormat(requestedFormat);
+    if (!archiverForFormat) {
+        const formatArchiverMap = {
+            'zip': '7-Zip',
+            '7z': '7-Zip',
+            'rar': 'WinRAR'
+        };
+        return res.status(400).json({ 
+            error: `Format '${requestedFormat}' requires ${formatArchiverMap[requestedFormat]} which is not available.`,
+            format: requestedFormat,
+            requiredArchiver: formatArchiverMap[requestedFormat]
+        });
+    }
+    
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const defaultArchiveName = `archive_${timestamp}`;
     const baseName = archiveName || defaultArchiveName;
+    const archiveId = `archive_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    try {
-        // Ensure archives directory exists
-        await fse.ensureDir('./archives');
-        
-        // Get file paths
-        const filePaths = [];
-        const errors = [];
-        
-        for (const fileId of fileIds) {
-            const file = await new Promise((resolve, reject) => {
-                db.get('SELECT * FROM files WHERE id = ?', [fileId], (err, row) => {
-                    if (err) reject(err);
-                    else resolve(row);
-                });
-            });
-            
-            if (file && fs.existsSync(file.full_path)) {
-                filePaths.push(file.full_path);
-            } else {
-                errors.push(`File not found: ${file ? file.filename : 'Unknown'}`);
-            }
-        }
-        
-        if (filePaths.length === 0) {
-            return res.status(400).json({ error: 'No valid files found' });
-        }
-        
-        // Check available archivers
-        const archivers = checkArchivers();
-        
-        if (Object.keys(archivers).length === 0) {
-            return res.status(400).json({ 
-                error: 'No external archivers found. Please install 7-Zip or WinRAR.',
-                suggestion: 'Download 7-Zip from https://www.7-zip.org/ or WinRAR from https://www.win-rar.com/'
-            });
-        }
-        
-        // Use selected archiver or first available
-        const useArchiver = selectedArchiver && archivers[selectedArchiver] ? selectedArchiver : Object.keys(archivers)[0];
-        const archiverPath = archivers[useArchiver];
-        
-        let archivePath, command;
-        const { execSync } = require('child_process');
-        
-        if (useArchiver === '7zip') {
-            archivePath = path.join(destinationPath || './archives', `${baseName}.7z`);
-            // Create file list for 7z
-            const fileListPath = path.join('./archives', `filelist_${timestamp}.txt`);
-            fs.writeFileSync(fileListPath, filePaths.join('\n'));
-            // Use console version with progress and no GUI
-            command = `${archiverPath} a -y -bsp1 -bso0 "${archivePath}" @"${fileListPath}"`;
-        } else if (useArchiver === 'winrar') {
-            archivePath = path.join(destinationPath || './archives', `${baseName}.rar`);
-            // Use console version with no GUI
-            command = `${archiverPath} a -y -ep1 -ibck "${archivePath}" ${filePaths.map(p => `"${p}"`).join(' ')}`;
-        }
-        
-        console.log('Executing archiver command:', command);
-        
-        // Execute archiver with progress tracking
-        const { spawn } = require('child_process');
-        const archiveProcess = spawn(command, { shell: true, stdio: ['pipe', 'pipe', 'pipe'] });
-        
-        let progressOutput = '';
-        
-        archiveProcess.stdout.on('data', (data) => {
-            progressOutput += data.toString();
-            console.log('Archive progress:', data.toString().trim());
-        });
-        
-        archiveProcess.stderr.on('data', (data) => {
-            console.log('Archive stderr:', data.toString().trim());
-        });
-        
-        await new Promise((resolve, reject) => {
-            archiveProcess.on('close', (code) => {
-                if (code === 0) {
-                    resolve();
-                } else {
-                    reject(new Error(`Archive process exited with code ${code}`));
+    // Initialize progress tracking
+    archiveProgress.set(archiveId, {
+        archiveId,
+        status: 'initializing',
+        progress: 0,
+        currentFile: '',
+        filesProcessed: 0,
+        totalFiles: fileIds.length,
+        consoleOutput: [],
+        startTime: Date.now()
+    });
+    
+    // Return archive ID immediately so client can start monitoring
+    res.json({ 
+        archiveId, 
+        message: 'Archive creation started',
+        format: requestedFormat,
+        archiver: archiverForFormat.archiver
+    });
+    
+    // Process archive creation asynchronously
+    (async () => {
+        try {
+            // Helper functions for progress tracking
+            const updateProgress = (updates) => {
+                const current = archiveProgress.get(archiveId);
+                if (current) {
+                    archiveProgress.set(archiveId, { ...current, ...updates });
                 }
+            };
+            
+            const addConsoleOutput = (line) => {
+                const current = archiveProgress.get(archiveId);
+                if (current) {
+                    const output = [...current.consoleOutput, {
+                        timestamp: Date.now(),
+                        line: line
+                    }];
+                    // Keep only last 100 lines
+                    if (output.length > 100) {
+                        output.shift();
+                    }
+                    archiveProgress.set(archiveId, { ...current, consoleOutput: output });
+                }
+            };
+            
+            addConsoleOutput('📦 Starting archive creation...');
+            updateProgress({ status: 'preparing' });
+            
+            // Ensure archives directory exists
+            await fse.ensureDir('./archives');
+            addConsoleOutput('✅ Archives directory ready');
+            
+            // Get file paths
+            const filePaths = [];
+            const errors = [];
+            
+            addConsoleOutput(`📋 Collecting ${fileIds.length} files...`);
+            updateProgress({ status: 'collecting_files', progress: 5 });
+            
+            for (let i = 0; i < fileIds.length; i++) {
+                const fileId = fileIds[i];
+                const file = await new Promise((resolve, reject) => {
+                    db.get('SELECT * FROM files WHERE id = ?', [fileId], (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row);
+                    });
+                });
+                
+                if (file && fs.existsSync(file.full_path)) {
+                    filePaths.push(file.full_path);
+                    addConsoleOutput(`  ✓ ${file.filename}`);
+                } else {
+                    const errorMsg = `File not found: ${file ? file.filename : 'Unknown'}`;
+                    errors.push(errorMsg);
+                    addConsoleOutput(`  ✗ ${errorMsg}`);
+                }
+                
+                updateProgress({ 
+                    filesProcessed: i + 1,
+                    progress: 5 + (i + 1) / fileIds.length * 10
+                });
+            }
+            
+            if (filePaths.length === 0) {
+                addConsoleOutput('❌ No valid files found');
+                updateProgress({ status: 'failed', progress: 0 });
+                return;
+            }
+            
+            addConsoleOutput(`✅ Collected ${filePaths.length} files`);
+            
+            // Use ArchiverManager to get archiver info
+            addConsoleOutput(`🔧 Using archiver: ${archiverForFormat.archiver} (${archiverForFormat.type})`);
+            addConsoleOutput(`📦 Format: ${requestedFormat.toUpperCase()}`);
+            
+            // Map format to file extension
+            const formatExtensions = {
+                'zip': '.zip',
+                'rar': '.rar',
+                '7z': '.7z'
+            };
+            
+            // Remove existing extension from baseName if present
+            const baseNameWithoutExt = baseName.replace(/\.(zip|rar|7z)$/i, '');
+            
+            // Build archive path with correct extension
+            const extension = formatExtensions[requestedFormat];
+            const archivePath = path.join(destinationPath || './archives', `${baseNameWithoutExt}${extension}`);
+            
+            // Check if archive already exists and delete it (including multi-volume parts)
+            if (fs.existsSync(archivePath)) {
+                addConsoleOutput(`⚠️  Archive already exists, deleting old version...`);
+                try {
+                    fs.unlinkSync(archivePath);
+                    
+                    // Also delete multi-volume parts if they exist (.001, .002, etc.)
+                    const archiveDir = path.dirname(archivePath);
+                    const archiveBase = path.basename(archivePath, extension);
+                    const volumePattern = new RegExp(`^${archiveBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.\\d{3}$`);
+                    
+                    const files = fs.readdirSync(archiveDir);
+                    let deletedVolumes = 0;
+                    files.forEach(file => {
+                        if (volumePattern.test(file)) {
+                            fs.unlinkSync(path.join(archiveDir, file));
+                            deletedVolumes++;
+                        }
+                    });
+                    
+                    if (deletedVolumes > 0) {
+                        addConsoleOutput(`✅ Deleted old archive and ${deletedVolumes} volume(s)`);
+                    } else {
+                        addConsoleOutput(`✅ Old archive deleted`);
+                    }
+                } catch (deleteError) {
+                    addConsoleOutput(`❌ Failed to delete old archive: ${deleteError.message}`);
+                    throw new Error(`Cannot overwrite existing archive: ${deleteError.message}`);
+                }
+            }
+            
+            addConsoleOutput(`📦 Creating archive: ${path.basename(archivePath)}`);
+            updateProgress({ status: 'archiving', progress: 15 });
+            
+            // Create archive with progress tracking
+            const result = await createArchiveWithProgress({
+                filePaths,
+                archivePath,
+                archiverPath: archiverForFormat.path,
+                archiverType: archiverForFormat.archiver,
+                format: requestedFormat,
+                password: password,
+                volumeSize: volumeSize,
+                compression: compression,
+                onProgress: updateProgress,
+                onConsoleOutput: addConsoleOutput
             });
             
-            archiveProcess.on('error', (error) => {
-                reject(error);
+            addConsoleOutput(`✅ Archive created successfully!`);
+            addConsoleOutput(`📊 Files processed: ${result.filesProcessed}`);
+            if (result.archiveSize) {
+                addConsoleOutput(`📊 Archive size: ${(result.archiveSize / 1024 / 1024).toFixed(2)} MB`);
+            }
+            
+            updateProgress({ 
+                status: 'completed', 
+                progress: 100,
+                archivePath: result.archivePath,
+                archiveSize: result.archiveSize
             });
-        });
-        
-        // Clean up file list if created
-        if (useArchiver === '7zip') {
-            const fileListPath = path.join('./archives', `filelist_${timestamp}.txt`);
-            if (fs.existsSync(fileListPath)) {
-                fs.unlinkSync(fileListPath);
+            
+            // Clean up progress after 5 minutes
+            setTimeout(() => {
+                archiveProgress.delete(archiveId);
+            }, 5 * 60 * 1000);
+            
+        } catch (error) {
+            console.error('Archive creation failed:', error);
+            const current = archiveProgress.get(archiveId);
+            if (current) {
+                current.consoleOutput.push({
+                    timestamp: Date.now(),
+                    line: `❌ Error: ${error.message}`
+                });
+                archiveProgress.set(archiveId, {
+                    ...current,
+                    status: 'failed',
+                    progress: 0,
+                    error: error.message
+                });
             }
         }
-        
-        const stats = fs.statSync(archivePath);
-        
-        res.json({
-            message: `Archive created successfully using ${useArchiver}`,
-            archiveName: path.basename(archivePath),
-            archivePath: archivePath,
-            filesAdded: filePaths.length,
-            archiveSize: stats.size,
-            archiver: useArchiver,
-            errors: errors.length > 0 ? errors : undefined
-        });
-        
-    } catch (error) {
-        res.status(500).json({ 
-            error: `Archive creation failed: ${error.message}`,
-            suggestion: 'Make sure the selected archiver is properly installed and accessible'
-        });
-    }
+    })();
 });
 
 // Enhanced archive creation with password and detailed logging
@@ -3507,28 +5438,40 @@ app.post('/api/files/archive-enhanced', async (req, res) => {
             return res.status(400).json({ error: 'No valid files found' });
         }
         
-        // Check available archivers
-        const archivers = checkArchivers();
+        // Validate format
+        const requestedFormat = format || '7z';
+        const validFormats = ['zip', 'rar', '7z'];
         
-        if (Object.keys(archivers).length === 0) {
+        if (!validFormats.includes(requestedFormat)) {
             return res.status(400).json({ 
-                error: 'No external archivers found. Please install 7-Zip or WinRAR.',
+                error: `Invalid format '${requestedFormat}'. Supported formats: ${validFormats.join(', ')}` 
+            });
+        }
+        
+        // Check if archiver for requested format is available
+        const archiverForFormat = await archiverManager.getArchiverForFormat(requestedFormat);
+        if (!archiverForFormat) {
+            const formatArchiverMap = {
+                'zip': '7-Zip',
+                '7z': '7-Zip',
+                'rar': 'WinRAR'
+            };
+            return res.status(400).json({ 
+                error: `Format '${requestedFormat}' requires ${formatArchiverMap[requestedFormat]} which is not available.`,
+                format: requestedFormat,
+                requiredArchiver: formatArchiverMap[requestedFormat],
                 suggestion: 'Download 7-Zip from https://www.7-zip.org/ or WinRAR from https://www.win-rar.com/'
             });
         }
         
         // Determine file extension based on format
         const extensions = { '7z': '.7z', 'zip': '.zip', 'rar': '.rar' };
-        const extension = extensions[format] || '.7z';
+        const extension = extensions[requestedFormat] || '.7z';
         const archivePath = path.join(destination, `${archiveName}${extension}`);
         
-        // Use appropriate archiver based on format
-        let useArchiver = format === 'rar' ? 'winrar' : '7zip';
-        if (!archivers[useArchiver]) {
-            useArchiver = Object.keys(archivers)[0]; // Use first available
-        }
-        
-        const archiverPath = archivers[useArchiver];
+        // Use archiver from ArchiverManager
+        const useArchiver = archiverForFormat.archiver;
+        const archiverPath = archiverForFormat.path;
         
         let command;
         const { spawn } = require('child_process');
@@ -4000,6 +5943,67 @@ async function findAvailablePort(startPort = 3000) {
     throw new Error('No available port found');
 }
 
+// Periodic cache statistics logging
+let cacheStatsInterval = null;
+
+function startCacheStatsLogging() {
+    // Clear any existing interval
+    if (cacheStatsInterval) {
+        clearInterval(cacheStatsInterval);
+    }
+    
+    // Only start logging if cache stats are enabled
+    if (!config.enableCacheStats) {
+        console.log('📊 Cache statistics logging disabled by configuration');
+        return;
+    }
+    
+    // Log cache stats at configured interval
+    cacheStatsInterval = setInterval(() => {
+        try {
+            if (USE_OPTIMIZED_CACHE && optimizedCache.isLoaded) {
+                const stats = optimizedCache.getStats();
+                console.log('\n📊 Cache Statistics (5-minute update):');
+                console.log(`   Strategy: Optimized`);
+                console.log(`   Total Memory: ~${stats.totalMemoryMB}MB`);
+                console.log(`   Index Cache: ${stats.indexCache.size} records (~${stats.indexCache.memoryMB}MB)`);
+                console.log(`   Hot Cache: ${stats.hotDataCache.size}/${stats.hotDataCache.maxSize} records (~${stats.hotDataCache.memoryMB}MB)`);
+                console.log(`   Hot Cache Hit Rate: ${stats.hotDataCache.hitRate}`);
+                console.log(`   Hot Cache Hits: ${stats.hotDataCache.hits}, Misses: ${stats.hotDataCache.misses}`);
+                console.log(`   Search Index: ${stats.searchIndex.size} records (~${stats.searchIndex.memoryMB}MB)`);
+                console.log(`   Load Duration: ${stats.loadDuration}ms`);
+                
+                // Process memory info
+                const mem = process.memoryUsage();
+                console.log(`   Process Memory: Heap ${Math.round(mem.heapUsed / 1024 / 1024)}MB / ${Math.round(mem.heapTotal / 1024 / 1024)}MB, RSS ${Math.round(mem.rss / 1024 / 1024)}MB\n`);
+            } else if (!USE_OPTIMIZED_CACHE && dbCache.isLoaded) {
+                console.log('\n📊 Cache Statistics (5-minute update):');
+                console.log(`   Strategy: Legacy`);
+                console.log(`   Total Records: ${dbCache.allFiles.length}`);
+                
+                // Process memory info
+                const mem = process.memoryUsage();
+                console.log(`   Process Memory: Heap ${Math.round(mem.heapUsed / 1024 / 1024)}MB / ${Math.round(mem.heapTotal / 1024 / 1024)}MB, RSS ${Math.round(mem.rss / 1024 / 1024)}MB\n`);
+            } else {
+                console.log('\n📊 Cache Statistics: Cache not loaded yet\n');
+            }
+        } catch (error) {
+            console.error('❌ Error logging cache stats:', error.message);
+        }
+    }, config.logCacheStatsInterval);
+    
+    const intervalMinutes = Math.round(config.logCacheStatsInterval / 60000);
+    console.log(`📊 Cache statistics logging started (every ${intervalMinutes} minutes)`);
+}
+
+function stopCacheStatsLogging() {
+    if (cacheStatsInterval) {
+        clearInterval(cacheStatsInterval);
+        cacheStatsInterval = null;
+        console.log('📊 Cache statistics logging stopped');
+    }
+}
+
 // Start server with automatic port detection
 async function startServer() {
     try {
@@ -4035,7 +6039,8 @@ async function startServer() {
             console.log(`   Backups: ./backups/`);
             console.log(`\n🎯 Ready to use! Press Ctrl+C to stop the server`);
             
-
+            // Start periodic cache statistics logging (every 5 minutes)
+            startCacheStatsLogging();
         });
         
         // Handle server errors
@@ -4054,8 +6059,8 @@ async function startServer() {
     }
 }
 
-// Start the server
-startServer();
+// Server will be started automatically after cache initialization
+// See db.once('open') handler above
 
 // Graceful shutdown
 process.on('SIGINT', () => {
@@ -4069,3 +6074,6 @@ process.on('SIGINT', () => {
         process.exit(0);
     });
 });
+
+// Export for testing
+module.exports = { DatabaseCache };

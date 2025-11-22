@@ -50,13 +50,18 @@ class AccessibilityManager {
         // Add appropriate class
         if (this.fontSize > 100) {
             const roundedSize = Math.round(this.fontSize / 10) * 10;
-            document.body.classList.add(`font-size-${roundedSize}`);
+            const className = `font-size-${roundedSize}`;
+            document.body.classList.add(className);
+            console.log(`📏 Added class: ${className}`);
+        } else {
+            console.log(`📏 Reset to default font size`);
         }
         
         this.savePreferences();
         this.updateFontSizeDisplay();
         this.announceToScreenReader(`Размер шрифта: ${this.fontSize}%`);
         console.log(`📏 Font size changed to: ${this.fontSize}%`);
+        console.log(`📏 Current body classes:`, document.body.className);
     }
     
     increaseFontSize() {
@@ -252,14 +257,20 @@ function toggleHighContrast() {
 }
 
 function increaseFontSize() {
+    console.log('🔼 increaseFontSize called');
     if (accessibilityManager) {
         accessibilityManager.increaseFontSize();
+    } else {
+        console.error('❌ accessibilityManager not initialized');
     }
 }
 
 function decreaseFontSize() {
+    console.log('🔽 decreaseFontSize called');
     if (accessibilityManager) {
         accessibilityManager.decreaseFontSize();
+    } else {
+        console.error('❌ accessibilityManager not initialized');
     }
 }
 
