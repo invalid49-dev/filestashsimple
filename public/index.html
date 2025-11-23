@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="ru" data-theme="light">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Modern file manager with accessibility features">
-    <title>FileStash Simple - Modern File Manager</title>
-    
+    <title>Filestash Super - Modern File Manager</title>
+
     <!-- Modern Styles -->
     <link rel="stylesheet" href="modern-styles.css">
-    
+
     <!-- Legacy Styles (will be gradually replaced) -->
     <style>
         * {
@@ -33,7 +34,7 @@
             background: white;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
 
@@ -74,7 +75,7 @@
             background: white;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
 
@@ -93,7 +94,8 @@
             color: #2c3e50;
         }
 
-        .form-group input, .form-group select {
+        .form-group input,
+        .form-group select {
             width: 100%;
             padding: 10px;
             border: 2px solid #ecf0f1;
@@ -102,7 +104,8 @@
             transition: border-color 0.3s ease;
         }
 
-        .form-group input:focus, .form-group select:focus {
+        .form-group input:focus,
+        .form-group select:focus {
             outline: none;
             border-color: #3498db;
         }
@@ -242,7 +245,7 @@
             background: white;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             text-align: center;
         }
 
@@ -261,7 +264,7 @@
         .files-table {
             background: white;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             overflow: hidden;
         }
 
@@ -270,7 +273,8 @@
             border-collapse: collapse;
         }
 
-        th, td {
+        th,
+        td {
             padding: 12px 15px;
             text-align: left;
             border-bottom: 1px solid #ecf0f1;
@@ -376,7 +380,7 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.5);
+            background-color: rgba(0, 0, 0, 0.5);
         }
 
         .modal-content {
@@ -410,26 +414,27 @@
             .container {
                 padding: 10px;
             }
-            
+
             .tabs {
                 flex-wrap: wrap;
             }
-            
+
             .tab {
                 flex: 1;
                 min-width: 120px;
                 text-align: center;
             }
-            
+
             .search-bar {
                 flex-direction: column;
             }
-            
+
             table {
                 font-size: 12px;
             }
-            
-            th, td {
+
+            th,
+            td {
                 padding: 8px 10px;
             }
 
@@ -441,7 +446,7 @@
             .file-browser {
                 max-height: 200px;
             }
-            
+
             /* Stack archive modal columns vertically on mobile */
             #archive-body {
                 grid-template-columns: 1fr !important;
@@ -496,7 +501,7 @@
         }
 
         .file-browser-expand:hover {
-            background-color: rgba(255,255,255,0.2);
+            background-color: rgba(255, 255, 255, 0.2);
         }
 
         .file-browser-path {
@@ -546,7 +551,7 @@
         .history-table {
             background: white;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             overflow: hidden;
             margin-top: 20px;
         }
@@ -611,7 +616,7 @@
         .files-tree-container {
             background: white;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             overflow: hidden;
             max-height: 600px;
             overflow-y: auto;
@@ -813,131 +818,252 @@
         }
 
         /* Tree node indentation levels */
-        .tree-node[data-level="0"] { padding-left: 12px; }
-        .tree-node[data-level="1"] { padding-left: 32px; }
-        .tree-node[data-level="2"] { padding-left: 52px; }
-        .tree-node[data-level="3"] { padding-left: 72px; }
-        .tree-node[data-level="4"] { padding-left: 92px; }
-        .tree-node[data-level="5"] { padding-left: 112px; }
+        .tree-node[data-level="0"] {
+            padding-left: 12px;
+        }
+
+        .tree-node[data-level="1"] {
+            padding-left: 32px;
+        }
+
+        .tree-node[data-level="2"] {
+            padding-left: 52px;
+        }
+
+        .tree-node[data-level="3"] {
+            padding-left: 72px;
+        }
+
+        .tree-node[data-level="4"] {
+            padding-left: 92px;
+        }
+
+        .tree-node[data-level="5"] {
+            padding-left: 112px;
+        }
 
         /* Responsive design for tree */
         @media (max-width: 768px) {
             .files-tree-container {
                 max-height: 400px;
             }
-            
+
             .tree-node {
                 padding: 6px 8px;
                 font-size: 13px;
             }
-            
+
             .tree-size {
                 display: none;
             }
-            
-            .tree-node[data-level="0"] { padding-left: 8px; }
-            .tree-node[data-level="1"] { padding-left: 24px; }
-            .tree-node[data-level="2"] { padding-left: 40px; }
-            .tree-node[data-level="3"] { padding-left: 56px; }
-            .tree-node[data-level="4"] { padding-left: 72px; }
-            .tree-node[data-level="5"] { padding-left: 88px; }
+
+            .tree-node[data-level="0"] {
+                padding-left: 8px;
+            }
+
+            .tree-node[data-level="1"] {
+                padding-left: 24px;
+            }
+
+            .tree-node[data-level="2"] {
+                padding-left: 40px;
+            }
+
+            .tree-node[data-level="3"] {
+                padding-left: 56px;
+            }
+
+            .tree-node[data-level="4"] {
+                padding-left: 72px;
+            }
+
+            .tree-node[data-level="5"] {
+                padding-left: 88px;
+            }
         }
 
-        /* Dark Theme Text Color Fixes */
+        /* Dark Theme Text Color Fixes - Bright Green */
         [data-theme="dark"] body {
-            color: #f0f2f5;
+            color: #7df57d !important;
         }
 
         [data-theme="dark"] .header h1 {
-            color: #f0f2f5;
+            color: #7df57d !important;
         }
 
         [data-theme="dark"] .form-group label {
-            color: #f0f2f5;
+            color: #7df57d !important;
         }
 
         [data-theme="dark"] th {
-            color: #f0f2f5;
+            color: #7df57d !important;
         }
 
         [data-theme="dark"] .tree-actions-panel h4 {
-            color: #f0f2f5;
+            color: #7df57d !important;
         }
 
         [data-theme="dark"] .tree-selected-count {
-            color: #b0b7c0;
+            color: #7df57d !important;
         }
 
         [data-theme="dark"] .close:hover {
-            color: #f0f2f5;
+            color: #7df57d !important;
         }
 
-        [data-theme="dark"] h1, 
-        [data-theme="dark"] h2, 
-        [data-theme="dark"] h3, 
-        [data-theme="dark"] h4, 
-        [data-theme="dark"] h5, 
+        [data-theme="dark"] h1,
+        [data-theme="dark"] h2,
+        [data-theme="dark"] h3,
+        [data-theme="dark"] h4,
+        [data-theme="dark"] h5,
         [data-theme="dark"] h6 {
-            color: #f0f2f5;
+            color: #7df57d !important;
         }
 
         [data-theme="dark"] p {
-            color: #f0f2f5;
+            color: #7df57d !important;
         }
 
         [data-theme="dark"] label {
-            color: #f0f2f5;
+            color: #7df57d !important;
         }
 
         [data-theme="dark"] .modal-header h3 {
-            color: #f0f2f5;
+            color: #7df57d !important;
         }
 
         [data-theme="dark"] .modal-body {
-            color: #f0f2f5;
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .app-title {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .toolbar-label {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] span {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] div {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] #directory-tree {
+            background-color: #000000 !important;
+        }
+
+        [data-theme="dark"] .directory-tree {
+            background-color: #000000 !important;
+        }
+
+        [data-theme="dark"] .tree-item {
+            background-color: #000000 !important;
+            color: #7df57d !important;
+            border-color: #1a1a1a !important;
+        }
+
+        [data-theme="dark"] .tree-item:hover {
+            background-color: #1a1a1a !important;
+            border-color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .tree-item-header {
+            background-color: #000000 !important;
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .tree-item.in-database {
+            background-color: rgba(125, 245, 125, 0.15) !important;
+            border-left-color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .tree-item.in-database:hover {
+            background-color: rgba(125, 245, 125, 0.25) !important;
+            border-color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .expand-icon {
+            color: #7df57d !important;
+            background-color: transparent !important;
+        }
+
+        [data-theme="dark"] .expand-icon:hover {
+            background-color: #1a1a1a !important;
+        }
+
+        [data-theme="dark"] .folder-icon {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .folder-name {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .loading {
+            background-color: #000000 !important;
+            color: #7df57d !important;
+        }
+
+        /* Context Menu Dark Theme */
+        [data-theme="dark"] #tree-context-menu {
+            background-color: #000000 !important;
+            border-color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .context-menu {
+            background-color: #000000 !important;
+            border-color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .context-menu-item {
+            color: #7df57d !important;
+            background-color: #000000 !important;
+        }
+
+        [data-theme="dark"] .context-menu-item:hover {
+            background-color: #1a1a1a !important;
+            color: #7df57d !important;
         }
     </style>
 </head>
+
 <body>
-    <!-- Skip to Content Link for Accessibility -->
-    <a href="#main-content" class="skip-link">Перейти к содержимому</a>
-    
     <div class="app-container">
         <!-- Modern Header with Accessibility Toolbar -->
         <header class="app-header" role="banner">
             <div class="header-top">
-                <h1 class="app-title">📁 FileStash Simple</h1>
-                
+                <h1 class="app-title">📁 Filestash Super</h1>
+
                 <!-- Accessibility Toolbar -->
                 <div class="accessibility-toolbar" role="toolbar" aria-label="Настройки доступности">
                     <span class="toolbar-label">Доступность:</span>
-                    
-                    <button class="icon-btn" onclick="decreaseFontSize()" 
-                            aria-label="Уменьшить размер шрифта" title="Уменьшить шрифт (Ctrl + -)">
+
+                    <button class="icon-btn" onclick="decreaseFontSize()" aria-label="Уменьшить размер шрифта"
+                        title="Уменьшить шрифт (Ctrl + -)">
                         A-
                     </button>
-                    
-                    <span id="font-size-display" aria-live="polite" style="min-width: 50px; text-align: center; font-weight: 600;">
+
+                    <span id="font-size-display" aria-live="polite"
+                        style="min-width: 50px; text-align: center; font-weight: 600;">
                         100%
                     </span>
-                    
-                    <button class="icon-btn" onclick="increaseFontSize()" 
-                            aria-label="Увеличить размер шрифта" title="Увеличить шрифт (Ctrl + +)">
+
+                    <button class="icon-btn" onclick="increaseFontSize()" aria-label="Увеличить размер шрифта"
+                        title="Увеличить шрифт (Ctrl + +)">
                         A+
                     </button>
-                    
-                    <button class="icon-btn" onclick="toggleHighContrast()" 
-                            aria-label="Переключить высокую контрастность" title="Высокая контрастность (Ctrl + H)">
-                        ◐ Контраст
-                    </button>
-                    
-                    <button class="icon-btn" onclick="toggleTheme()" 
-                            aria-label="Переключить тему" title="Светлая/Темная тема">
+
+                    <button class="icon-btn" onclick="toggleTheme()" aria-label="Переключить тему"
+                        title="Светлая/Темная тема">
                         🌙 Тема
                     </button>
                 </div>
             </div>
-            
+
             <p style="color: var(--text-secondary); margin-top: var(--spacing-sm);">
                 Современный файловый менеджер с поддержкой доступности
             </p>
@@ -945,20 +1071,20 @@
 
         <!-- Navigation Tabs -->
         <nav class="tabs-container" role="tablist" aria-label="Основная навигация">
-            <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="scan-tab" 
-                    onclick="showTab('scan')" id="tab-scan">
+            <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="scan-tab"
+                onclick="showTab('scan')" id="tab-scan">
                 🔍 Сканирование
             </button>
-            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="search-tab" 
-                    onclick="showTab('search')" id="tab-search">
+            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="search-tab"
+                onclick="showTab('search')" id="tab-search">
                 🗄️ База данных
             </button>
-            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="history-tab" 
-                    onclick="showTab('history')" id="tab-history">
+            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="history-tab"
+                onclick="showTab('history')" id="tab-history">
                 📊 История
             </button>
-            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="settings-tab" 
-                    onclick="showTab('settings')" id="tab-settings">
+            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="settings-tab"
+                onclick="showTab('settings')" id="tab-settings">
                 ⚙️ Настройки
             </button>
         </nav>
@@ -966,223 +1092,240 @@
         <!-- Main Content -->
         <main id="main-content" role="main">
 
-        <!-- Scan Tab -->
-        <div id="scan-tab" class="tab-content active">
-            <h2>Сканирование папок</h2>
-            
-            <div class="form-group">
-                <label for="drive-select">Выберите диск:</label>
-                <select id="drive-select" onchange="onDriveChange()">
-                    <option value="">Загрузка дисков...</option>
-                </select>
-            </div>
+            <!-- Scan Tab -->
+            <div id="scan-tab" class="tab-content active">
+                <h2>Сканирование папок</h2>
 
-            <div class="form-group">
-                <label for="path-input">Путь для сканирования:</label>
-                <input type="text" id="path-input" placeholder="Введите путь к папке..." value="C:\">
-            </div>
+                <div class="form-group">
+                    <label for="drive-select">Выберите диск:</label>
+                    <select id="drive-select" onchange="onDriveChange()">
+                        <option value="">Загрузка дисков...</option>
+                    </select>
+                </div>
 
-            <div style="margin-bottom: 15px;">
-                <button class="btn btn-primary" onclick="browseDirectories()">📂 Обзор папок</button>
-            </div>
+                <div class="form-group">
+                    <label for="path-input">Путь для сканирования:</label>
+                    <input type="text" id="path-input" placeholder="Введите путь к папке..." value="C:\">
+                </div>
 
-            <div class="directory-tree" id="directory-tree">
-                <div class="loading">Выберите папку для обзора</div>
-            </div>
+                <div style="margin-bottom: 15px;">
+                    <button class="btn btn-primary" onclick="browseDirectories()">📂 Обзор папок</button>
+                </div>
 
-            <div style="margin-top: 15px;">
-                <button class="btn btn-success" onclick="showScanConfirmModal()" id="scan-btn" disabled>
-                    🚀 Сканировать выбранные папки (<span id="selected-count">0</span>)
-                </button>
-            </div>
+                <div class="directory-tree" id="directory-tree">
+                    <div class="loading">Выберите папку для обзора</div>
+                </div>
 
-            <div id="scan-status"></div>
-        </div>
-
-        <!-- Search Tab -->
-        <div id="search-tab" class="tab-content">
-            <h2>База данных</h2>
-            
-            <div class="search-bar">
-                <input type="text" id="search-input" placeholder="Поиск по имени, пути, расширению или CRC32..." onkeyup="handleSearchKeyup(event)">
-                <button class="btn btn-primary" onclick="searchFiles()">🔍 Поиск</button>
-                <button class="btn btn-secondary" onclick="refreshCurrentView()">🔄 Обновить</button>
-            </div>
-            
-            <!-- File Tree Container -->
-            <div id="files-tree-container" class="files-tree-container">
-                <div class="tree-controls" style="padding: 10px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; display: none;">
-                    <button class="btn btn-secondary" onclick="expandAllTreeNodes()" style="padding: 5px 10px; font-size: 12px; margin-right: 5px;">
-                        📂 Развернуть все
-                    </button>
-                    <button class="btn btn-secondary" onclick="collapseAllTreeNodes()" style="padding: 5px 10px; font-size: 12px;">
-                        📁 Свернуть все
+                <div style="margin-top: 15px;">
+                    <button class="btn btn-success" onclick="showScanConfirmModal()" id="scan-btn" disabled>
+                        🚀 Сканировать выбранные папки (<span id="selected-count">0</span>)
                     </button>
                 </div>
-                
-                <div id="tree-actions-panel" class="tree-actions-panel">
-                    <div id="tree-selected-count" class="tree-selected-count">0 элементов выбрано</div>
-                    <div class="tree-actions-buttons">
-                        <button class="btn btn-success" onclick="showCopyDialog()">📋 Копировать в</button>
-                        <button class="btn btn-warning" onclick="showMoveDialog()">📦 Переместить в</button>
-                        <button class="btn btn-danger" onclick="confirmDeleteTreeFiles()">🗑️ Удалить</button>
-                        <button class="btn btn-secondary" onclick="showArchiveDialog()">🗜️ Создать архив</button>
-                    </div>
-                </div>
-                
-                <div class="tree-loading">Загрузка файлового дерева...</div>
+
+                <div id="scan-status"></div>
             </div>
-            
-            <div style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 6px;">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                    <input type="checkbox" id="select-all" onchange="toggleSelectAll()">
-                    <label for="select-all" style="margin: 0;">Выбрать все</label>
-                    <span id="selected-files-count" style="color: #7f8c8d; font-size: 14px;">0 файлов выбрано</span>
+
+            <!-- Search Tab -->
+            <div id="search-tab" class="tab-content">
+                <h2>База данных</h2>
+
+                <div class="search-bar">
+                    <input type="text" id="search-input" placeholder="Поиск по имени, пути, расширению или CRC32..."
+                        onkeyup="handleSearchKeyup(event)">
+                    <button class="btn btn-primary" onclick="searchFiles()">🔍 Поиск</button>
+                    <button class="btn btn-secondary" onclick="refreshCurrentView()">🔄 Обновить</button>
                 </div>
-                
-                <div id="file-actions" style="display: none;">
-                    <h4>Действия с выбранными файлами:</h4>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
-                        <button class="btn btn-primary" onclick="openFileAction()">📂 Открыть</button>
-                        <button class="btn btn-success" onclick="copyFilesAction()">📋 Копировать</button>
-                        <button class="btn btn-warning" onclick="moveFilesAction()">📦 Переместить</button>
-                        <button class="btn btn-secondary" onclick="archiveFilesAction()">🗜️ Архивировать</button>
-                        <button class="btn btn-danger" onclick="deleteFilesAction()">🗑️ Удалить</button>
-                    </div>
-                    <div style="font-size: 12px; color: #666; padding: 5px; background: #f8f9fa; border-radius: 4px;">
-                        💡 <strong>Совет:</strong> Для тестирования создайте папку "C:\FileStash-Test" и используйте её как место назначения
-                        <button class="btn btn-secondary" onclick="createTestFolder()" style="margin-left: 10px; padding: 3px 8px; font-size: 11px;">
-                            Создать тестовую папку
+
+                <!-- File Tree Container -->
+                <div id="files-tree-container" class="files-tree-container">
+                    <div class="tree-controls"
+                        style="padding: 10px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; display: none;">
+                        <button class="btn btn-secondary" onclick="expandAllTreeNodes()"
+                            style="padding: 5px 10px; font-size: 12px; margin-right: 5px;">
+                            📂 Развернуть все
+                        </button>
+                        <button class="btn btn-secondary" onclick="collapseAllTreeNodes()"
+                            style="padding: 5px 10px; font-size: 12px;">
+                            📁 Свернуть все
                         </button>
                     </div>
+
+                    <div id="tree-actions-panel" class="tree-actions-panel">
+                        <div id="tree-selected-count" class="tree-selected-count">0 элементов выбрано</div>
+                        <div class="tree-actions-buttons">
+                            <button class="btn btn-success" onclick="showCopyDialog()">📋 Копировать в</button>
+                            <button class="btn btn-warning" onclick="showMoveDialog()">📦 Переместить в</button>
+                            <button class="btn btn-danger" onclick="confirmDeleteTreeFiles()">🗑️ Удалить</button>
+                            <button class="btn btn-secondary" onclick="showArchiveDialog()">🗜️ Создать архив</button>
+                        </div>
+                    </div>
+
+                    <div class="tree-loading">Загрузка файлового дерева...</div>
+                </div>
+
+                <div style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <input type="checkbox" id="select-all" onchange="toggleSelectAll()">
+                        <label for="select-all" style="margin: 0;">Выбрать все</label>
+                        <span id="selected-files-count" style="color: #7f8c8d; font-size: 14px;">0 файлов выбрано</span>
+                    </div>
+
+                    <div id="file-actions" style="display: none;">
+                        <h4>Действия с выбранными файлами:</h4>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+                            <button class="btn btn-primary" onclick="openFileAction()">📂 Открыть</button>
+                            <button class="btn btn-success" onclick="copyFilesAction()">📋 Копировать</button>
+                            <button class="btn btn-warning" onclick="moveFilesAction()">📦 Переместить</button>
+                            <button class="btn btn-secondary" onclick="archiveFilesAction()">🗜️ Архивировать</button>
+                            <button class="btn btn-danger" onclick="deleteFilesAction()">🗑️ Удалить</button>
+                        </div>
+                        <div
+                            style="font-size: 12px; color: #666; padding: 5px; background: #f8f9fa; border-radius: 4px;">
+                            💡 <strong>Совет:</strong> Для тестирования создайте папку "C:\FileStash-Test" и используйте
+                            её как место назначения
+                            <button class="btn btn-secondary" onclick="createTestFolder()"
+                                style="margin-left: 10px; padding: 3px 8px; font-size: 11px;">
+                                Создать тестовую папку
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- History Tab -->
-        <div id="history-tab" class="tab-content">
-            <h2>История сканирования</h2>
-            
-            <div style="margin-bottom: 20px;">
-                <button class="btn btn-primary" onclick="loadScanHistory()">🔄 Обновить историю</button>
-                <button class="btn btn-secondary" onclick="clearScanHistory()">🗑️ Очистить историю</button>
-            </div>
-            
-            <div id="scan-history-container">
-                <div class="loading">Загрузка истории сканирования...</div>
-            </div>
-        </div>
+            <!-- History Tab -->
+            <div id="history-tab" class="tab-content">
+                <h2>История сканирования</h2>
 
-        <!-- Settings Tab -->
-        <div id="settings-tab" class="tab-content">
-            <h2>Настройки</h2>
-            <!-- Scan settings moved to confirmation modal -->
-            
-            <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 6px; font-size: 12px;">
-                <strong>💡 Оптимизации производительности:</strong>
-                <ul style="margin: 8px 0; padding-left: 20px;">
-                    <li>Параллельное чтение файловой системы</li>
-                    <li>Асинхронные операции ввода-вывода</li>
-                    <li>Пакетная вставка в базу данных</li>
-                    <li>Потоковое вычисление CRC32 для больших файлов (64KB буферы)</li>
-                    <li>Оптимизированные настройки SQLite (WAL, кэш 10MB)</li>
-                    <li>Индексы базы данных для быстрого поиска</li>
-                </ul>
-            </div>
-            
-
-            
-            <div class="form-group">
-                <h3>Управление базой данных</h3>
-                <button class="btn btn-success" onclick="backupDatabase()">💾 Создать резервную копию</button>
-                <button class="btn btn-info" onclick="showDatabaseRestoreModal()">📥 Восстановить из копии</button>
-                <button class="btn btn-warning" onclick="cleanupDatabase()">🧹 Очистить несуществующие файлы</button>
-                <button class="btn btn-primary" onclick="checkDatabaseIntegrity()">🔍 Проверить целостность</button>
-                <button class="btn btn-info" onclick="compactDatabase()">🗜️ Сжать базу данных</button>
-                <button class="btn btn-danger" onclick="clearDatabase()">🗑️ Очистить базу данных</button>
-                <p style="margin-top: 10px; color: #7f8c8d; font-size: 14px;">
-                    <strong>Резервная копия</strong> сохраняется в JSON формате.<br>
-                    <strong>Восстановить из копии</strong> загрузит данные из резервной копии (режимы: замена или слияние).<br>
-                    <strong>Очистка несуществующих файлов</strong> удалит из базы записи о файлах, которые больше не существуют на диске.<br>
-                    <strong>Проверить целостность</strong> создаст отчет о недостающих файлах без удаления записей из базы данных.<br>
-                    <strong>Сжатие базы данных</strong> уменьшит размер файла базы данных, удалив неиспользуемое пространство.<br>
-                    <strong>Полная очистка</strong> удалит все записи из базы данных, но не затронет реальные файлы.
-                </p>
-            </div>
-            
-            <!-- Database Integrity Check Progress -->
-            <div id="integrity-check-progress" style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6;">
-                <h4>Проверка целостности базы данных</h4>
-                <div class="progress-bar" style="background: #e9ecef; border-radius: 4px; height: 20px; margin: 10px 0;">
-                    <div id="integrity-progress-fill" style="background: #007bff; height: 100%; border-radius: 4px; width: 0%; transition: width 0.3s ease;"></div>
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-primary" onclick="loadScanHistory()">🔄 Обновить историю</button>
+                    <button class="btn btn-secondary" onclick="clearScanHistory()">🗑️ Очистить историю</button>
                 </div>
-                <div id="integrity-progress-status" style="font-size: 14px; color: #6c757d;">Инициализация...</div>
-                <button id="integrity-stop-btn" class="btn btn-danger" onclick="stopDatabaseIntegrityCheck()" style="display: none; margin-top: 10px;">⏹️ Остановить проверку</button>
-            </div>
-            
-            <div id="settings-status"></div>
-        </div>
 
-        <!-- Statistics -->
-        <div class="stats-grid" id="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value" id="total-files">0</div>
-                <div class="stat-label">Всего файлов</div>
+                <div id="scan-history-container">
+                    <div class="loading">Загрузка истории сканирования...</div>
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-value" id="total-dirs">0</div>
-                <div class="stat-label">Всего папок</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="total-size">0 B</div>
-                <div class="stat-label">Общий размер</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="last-scan-time">-</div>
-                <div class="stat-label">Время последнего сканирования</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="scan-performance">-</div>
-                <div class="stat-label">Производительность сканирования</div>
-            </div>
-        </div>
+
+            <!-- Settings Tab -->
+            <div id="settings-tab" class="tab-content">
+                <h2>Настройки</h2>
+                <!-- Scan settings moved to confirmation modal -->
+
+                <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 6px; font-size: 12px;">
+                    <strong>💡 Оптимизации производительности:</strong>
+                    <ul style="margin: 8px 0; padding-left: 20px;">
+                        <li>Параллельное чтение файловой системы</li>
+                        <li>Асинхронные операции ввода-вывода</li>
+                        <li>Пакетная вставка в базу данных</li>
+                        <li>Потоковое вычисление CRC32 для больших файлов (64KB буферы)</li>
+                        <li>Оптимизированные настройки SQLite (WAL, кэш 10MB)</li>
+                        <li>Индексы базы данных для быстрого поиска</li>
+                    </ul>
+                </div>
 
 
 
-        <!-- Files Table (hidden, only tree view used) -->
-        <div class="files-table" id="files-table-container" style="display: none;">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 40px;">
-                            <input type="checkbox" id="header-select-all" onchange="toggleSelectAll()">
-                        </th>
-                        <th>Имя</th>
-                        <th>Путь</th>
-                        <th>Расширение</th>
-                        <th>Размер</th>
-                        <th>CRC32</th>
-                        <th>Изменен</th>
-                        <th>Действия</th>
-                    </tr>
-                </thead>
-                <tbody id="files-tbody">
-                    <tr>
-                        <td colspan="8" class="loading">Загрузка файлов...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+                <div class="form-group">
+                    <h3>Управление базой данных</h3>
+                    <button class="btn btn-success" onclick="backupDatabase()">💾 Создать резервную копию</button>
+                    <button class="btn btn-info" onclick="showDatabaseRestoreModal()">📥 Восстановить из копии</button>
+                    <button class="btn btn-warning" onclick="cleanupDatabase()">🧹 Очистить несуществующие
+                        файлы</button>
+                    <button class="btn btn-primary" onclick="checkDatabaseIntegrity()">🔍 Проверить целостность</button>
+                    <button class="btn btn-info" onclick="compactDatabase()">🗜️ Сжать базу данных</button>
+                    <button class="btn btn-danger" onclick="clearDatabase()">🗑️ Очистить базу данных</button>
+                    <p style="margin-top: 10px; color: #7f8c8d; font-size: 14px;">
+                        <strong>Резервная копия</strong> сохраняется в JSON формате.<br>
+                        <strong>Восстановить из копии</strong> загрузит данные из резервной копии (режимы: замена или
+                        слияние).<br>
+                        <strong>Очистка несуществующих файлов</strong> удалит из базы записи о файлах, которые больше не
+                        существуют на диске.<br>
+                        <strong>Проверить целостность</strong> создаст отчет о недостающих файлах без удаления записей
+                        из базы данных.<br>
+                        <strong>Сжатие базы данных</strong> уменьшит размер файла базы данных, удалив неиспользуемое
+                        пространство.<br>
+                        <strong>Полная очистка</strong> удалит все записи из базы данных, но не затронет реальные файлы.
+                    </p>
+                </div>
 
-        <!-- Pagination (hidden, not used in tree view) -->
-        <div class="pagination" id="pagination" style="display: none;">
-            <button class="btn btn-secondary" onclick="previousPage()" id="prev-btn" disabled>← Назад</button>
-            <span id="page-info">Страница 1 из 1</span>
-            <button class="btn btn-secondary" onclick="nextPage()" id="next-btn" disabled>Вперед →</button>
-        </div>
+                <!-- Database Integrity Check Progress -->
+                <div id="integrity-check-progress"
+                    style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6;">
+                    <h4>Проверка целостности базы данных</h4>
+                    <div class="progress-bar"
+                        style="background: #e9ecef; border-radius: 4px; height: 20px; margin: 10px 0;">
+                        <div id="integrity-progress-fill"
+                            style="background: #007bff; height: 100%; border-radius: 4px; width: 0%; transition: width 0.3s ease;">
+                        </div>
+                    </div>
+                    <div id="integrity-progress-status" style="font-size: 14px; color: #6c757d;">Инициализация...</div>
+                    <button id="integrity-stop-btn" class="btn btn-danger" onclick="stopDatabaseIntegrityCheck()"
+                        style="display: none; margin-top: 10px;">⏹️ Остановить проверку</button>
+                </div>
+
+                <div id="settings-status"></div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-files">0</div>
+                    <div class="stat-label">Всего файлов</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="total-dirs">0</div>
+                    <div class="stat-label">Всего папок</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="total-size">0 B</div>
+                    <div class="stat-label">Общий размер</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="last-scan-time">-</div>
+                    <div class="stat-label">Время последнего сканирования</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="scan-performance">-</div>
+                    <div class="stat-label">Производительность сканирования</div>
+                </div>
+            </div>
+
+
+
+            <!-- Files Table (hidden, only tree view used) -->
+            <div class="files-table" id="files-table-container" style="display: none;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="header-select-all" onchange="toggleSelectAll()">
+                            </th>
+                            <th>Имя</th>
+                            <th>Путь</th>
+                            <th>Расширение</th>
+                            <th>Размер</th>
+                            <th>CRC32</th>
+                            <th>Изменен</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="files-tbody">
+                        <tr>
+                            <td colspan="8" class="loading">Загрузка файлов...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination (hidden, not used in tree view) -->
+            <div class="pagination" id="pagination" style="display: none;">
+                <button class="btn btn-secondary" onclick="previousPage()" id="prev-btn" disabled>← Назад</button>
+                <span id="page-info">Страница 1 из 1</span>
+                <button class="btn btn-secondary" onclick="nextPage()" id="next-btn" disabled>Вперед →</button>
+            </div>
     </div>
-        </main>
-        <!-- End Main Content -->
+    </main>
+    <!-- End Main Content -->
     </div>
     <!-- End App Container -->
 
@@ -1220,24 +1363,25 @@
                             <button class="btn btn-secondary" onclick="browseArchiveDestination()">📂 Обзор</button>
                         </div>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="archive-name">Имя архива:</label>
                         <input type="text" id="archive-name" placeholder="archive">
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="archive-format">Формат архива:</label>
                         <select id="archive-format" onchange="updateArchiveExtension()">
                             <option value="">Загрузка форматов...</option>
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="archive-password">Пароль (необязательно):</label>
-                        <input type="password" id="archive-password" placeholder="Оставьте пустым для архива без пароля">
+                        <input type="password" id="archive-password"
+                            placeholder="Оставьте пустым для архива без пароля">
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="archive-compression">Степень сжатия:</label>
                         <select id="archive-compression">
@@ -1247,24 +1391,25 @@
                             <option value="5">Максимальное</option>
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
                         <label>
                             <input type="checkbox" id="archive-multivolume" onchange="toggleMultivolume()">
                             Многотомный архив
                         </label>
                     </div>
-                    
+
                     <div class="form-group" id="volume-size-group" style="display: none;">
                         <label for="archive-volume-size">Размер тома (МБ):</label>
                         <input type="number" id="archive-volume-size" placeholder="100" min="1" max="4096">
                     </div>
                 </div>
-                
+
                 <!-- Right column: Files list -->
                 <div style="display: flex; flex-direction: column;">
                     <label style="margin-bottom: 10px; font-weight: bold;">Файлы для архивации:</label>
-                    <div id="archive-files-list" style="flex: 1; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f8f9fa;">
+                    <div id="archive-files-list"
+                        style="flex: 1; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f8f9fa;">
                         <!-- Files list will be populated here -->
                     </div>
                 </div>
@@ -1287,18 +1432,21 @@
                     <div class="progress-fill" id="archive-progress-fill" style="width: 0%;">0%</div>
                 </div>
                 <div id="archive-progress-status">Подготовка...</div>
-                <div id="archive-log" style="max-height: 300px; overflow-y: auto; background: #f8f9fa; border: 1px solid #ddd; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 12px; white-space: pre-wrap;">
+                <div id="archive-log"
+                    style="max-height: 300px; overflow-y: auto; background: #f8f9fa; border: 1px solid #ddd; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 12px; white-space: pre-wrap;">
                     <!-- Archive log will be displayed here -->
                 </div>
             </div>
             <div style="text-align: right; margin-top: 20px;">
-                <button class="btn btn-secondary" onclick="closeArchiveProgressModal()" id="archive-close-btn" style="display: none;">Закрыть</button>
+                <button class="btn btn-secondary" onclick="closeArchiveProgressModal()" id="archive-close-btn"
+                    style="display: none;">Закрыть</button>
             </div>
         </div>
     </div>
 
     <!-- Context Menu -->
-    <div id="tree-context-menu" class="context-menu" style="display: none; position: absolute; z-index: 1000; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 5px 0;">
+    <div id="tree-context-menu" class="context-menu"
+        style="display: none; position: absolute; z-index: 1000; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 5px 0;">
         <div class="context-menu-item" onclick="contextCopyFile()">📋 Копировать в</div>
         <div class="context-menu-item" onclick="contextMoveFile()">📦 Переместить в</div>
         <div class="context-menu-item" onclick="contextDeleteFile()">🗑️ Удалить</div>
@@ -1315,24 +1463,27 @@
                 <span class="close" onclick="closeIntegrityCheckModal()">&times;</span>
             </div>
             <div id="integrity-check-body">
-                <div id="integrity-check-path" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                <div id="integrity-check-path"
+                    style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
                     <strong>Проверяемый путь:</strong> <span id="check-path-display"></span>
                 </div>
-                
+
                 <div class="form-group">
                     <h4>Выберите типы проверок:</h4>
                     <label style="display: block; margin: 10px 0;">
                         <input type="checkbox" id="check-existence" checked>
                         <strong>Проверка существования файлов</strong>
-                        <br><small style="color: #666;">Проверить, что все файлы из базы данных существуют на диске</small>
+                        <br><small style="color: #666;">Проверить, что все файлы из базы данных существуют на
+                            диске</small>
                     </label>
                     <label style="display: block; margin: 10px 0;">
                         <input type="checkbox" id="check-crc32" checked>
                         <strong>Проверка CRC32 хэшей</strong>
-                        <br><small style="color: #666;">Проверить, что содержимое файлов не изменилось (может занять много времени)</small>
+                        <br><small style="color: #666;">Проверить, что содержимое файлов не изменилось (может занять
+                            много времени)</small>
                     </label>
                 </div>
-                
+
                 <div class="form-group">
                     <h4>Настройки производительности:</h4>
                     <label for="integrity-thread-count">Количество потоков:</label>
@@ -1343,28 +1494,37 @@
                         <option value="8">8 потоков</option>
                         <option value="16">16 потоков</option>
                     </select>
-                    <br><small style="color: #666;">Больше потоков = быстрее проверка, но больше нагрузка на систему</small>
+                    <br><small style="color: #666;">Больше потоков = быстрее проверка, но больше нагрузка на
+                        систему</small>
                 </div>
-                
+
                 <!-- Progress section -->
-                <div id="integrity-progress-section" style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
+                <div id="integrity-progress-section"
+                    style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
                     <h4>Прогресс проверки:</h4>
-                    <div class="progress-bar" style="width: 100%; height: 25px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin: 10px 0;">
-                        <div id="integrity-progress-fill" style="height: 100%; background: linear-gradient(90deg, #28a745, #20c997); width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">0%</div>
+                    <div class="progress-bar"
+                        style="width: 100%; height: 25px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin: 10px 0;">
+                        <div id="integrity-progress-fill"
+                            style="height: 100%; background: linear-gradient(90deg, #28a745, #20c997); width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">
+                            0%</div>
                     </div>
-                    <div id="integrity-progress-status" style="font-size: 14px; color: #666; margin-bottom: 10px;">Инициализация...</div>
-                    <button class="btn btn-warning" onclick="stopIntegrityCheck()" id="integrity-stop-btn" style="display: none;">⏹️ Остановить проверку</button>
+                    <div id="integrity-progress-status" style="font-size: 14px; color: #666; margin-bottom: 10px;">
+                        Инициализация...</div>
+                    <button class="btn btn-warning" onclick="stopIntegrityCheck()" id="integrity-stop-btn"
+                        style="display: none;">⏹️ Остановить проверку</button>
                 </div>
-                
+
                 <div id="integrity-results" style="display: none; margin-top: 20px;">
                     <h4 style="font-size: 18px; margin-bottom: 15px;">Результаты проверки:</h4>
                     <div id="integrity-summary" style="margin-bottom: 20px; font-size: 16px;"></div>
-                    <div id="integrity-details" style="max-height: 500px; overflow-y: auto; font-size: 14px; line-height: 1.6;"></div>
+                    <div id="integrity-details"
+                        style="max-height: 500px; overflow-y: auto; font-size: 14px; line-height: 1.6;"></div>
                 </div>
             </div>
             <div style="text-align: right; margin-top: 20px;">
                 <button class="btn btn-secondary" onclick="closeIntegrityCheckModal()">Отмена</button>
-                <button class="btn btn-primary" onclick="startIntegrityCheck()" id="integrity-start-btn">🔍 Начать проверку</button>
+                <button class="btn btn-primary" onclick="startIntegrityCheck()" id="integrity-start-btn">🔍 Начать
+                    проверку</button>
             </div>
         </div>
     </div>
@@ -1379,12 +1539,13 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label for="backup-file-path">Путь к файлу резервной копии:</label>
-                    <input type="text" id="backup-file-path" placeholder="Например: ./backup_2025-10-25T12-00-00-000Z.json" style="width: 100%;">
+                    <input type="text" id="backup-file-path"
+                        placeholder="Например: ./backup_2025-10-25T12-00-00-000Z.json" style="width: 100%;">
                     <p style="margin-top: 5px; color: #7f8c8d; font-size: 12px;">
                         Укажите полный путь к JSON файлу резервной копии
                     </p>
                 </div>
-                
+
                 <div class="form-group">
                     <label>Режим восстановления:</label>
                     <div style="margin-top: 8px;">
@@ -1394,12 +1555,14 @@
                         </label>
                         <label style="display: block;">
                             <input type="radio" name="restore-mode" value="merge" style="margin-right: 8px;">
-                            <strong>Объединить</strong> - добавить данные из копии к существующим (дубликаты игнорируются)
+                            <strong>Объединить</strong> - добавить данные из копии к существующим (дубликаты
+                            игнорируются)
                         </label>
                     </div>
                 </div>
-                
-                <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 6px; border: 1px solid #ffeaa7;">
+
+                <div
+                    style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 6px; border: 1px solid #ffeaa7;">
                     <strong>⚠️ Внимание:</strong>
                     <ul style="margin: 8px 0; padding-left: 20px; font-size: 14px;">
                         <li>Режим "Заменить" полностью очистит текущую базу данных</li>
@@ -1430,14 +1593,16 @@
                         <button class="btn btn-secondary" onclick="browseDestination()">📂 Обзор</button>
                     </div>
                 </div>
-                
-                <div id="destination-files-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #f8f9fa;">
+
+                <div id="destination-files-list"
+                    style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #f8f9fa;">
                     <!-- Selected files list will be populated here -->
                 </div>
             </div>
             <div style="text-align: right; margin-top: 20px;">
                 <button class="btn btn-secondary" onclick="closeDestinationModal()">Отмена</button>
-                <button class="btn btn-primary" id="destination-confirm-btn" onclick="confirmDestinationOperation()">Выполнить</button>
+                <button class="btn btn-primary" id="destination-confirm-btn"
+                    onclick="confirmDestinationOperation()">Выполнить</button>
             </div>
         </div>
     </div>
@@ -1452,28 +1617,248 @@
             <div class="modal-body">
                 <div class="form-group">
                     <h4>Выбранные папки для сканирования:</h4>
-                    <div id="scan-folders-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #f8f9fa; border-radius: 4px;">
+                    <div id="scan-folders-list"
+                        style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #f8f9fa; border-radius: 4px;">
                         <!-- Selected folders will be listed here -->
                     </div>
                 </div>
-                
+
                 <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #e8f4fd; border-radius: 6px; cursor: pointer;">
-                        <input type="checkbox" id="scan-recursive-checkbox" checked style="width: 20px; height: 20px; cursor: pointer;">
+                    <label
+                        style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #e8f4fd; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" id="scan-recursive-checkbox" checked
+                            style="width: 20px; height: 20px; cursor: pointer;">
                         <div>
                             <strong>Рекурсивное сканирование</strong>
                             <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">
-                                Если включено, сканируются все подпапки. Если выключено, сканируется только верхний уровень выбранных папок.
+                                Если включено, сканируются все подпапки. Если выключено, сканируется только верхний
+                                уровень выбранных папок.
                             </p>
                         </div>
                     </label>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="scan-thread-count">Количество потоков:</label>
                     <input type="number" id="scan-thread-count" min="1" max="32" value="8" style="width: 100px;">
                 </div>
-                
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="scan-calculate-crc32" checked>
+                        <span>Вычислять CRC32 для файлов</span>
+                    </label>
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeScanConfirmModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="confirmScanOperation()">🚀 Начать сканирование</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Modal -->
+    <div id="progress-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="progress-title">Выполнение операции</h3>
+            </div>
+            <div id="progress-body">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%;">0%</div>
+                </div>
+                <div id="progress-status">Подготовка...</div>
+                <div style="text-align: center; margin-top: 15px;">
+                    <button id="stop-scan-btn" class="btn btn-danger" onclick="stopScanning()" style="display: none;">
+                        ⏹️ Остановить сканирование
+                    </button>
+                </div>
+            </div>
+            <div class="modal-header">
+                <h3>Проверка целостности файлов</h3>
+                <span class="close" onclick="closeIntegrityCheckModal()">&times;</span>
+            </div>
+            <div id="integrity-check-body">
+                <div id="integrity-check-path"
+                    style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                    <strong>Проверяемый путь:</strong> <span id="check-path-display"></span>
+                </div>
+
+                <div class="form-group">
+                    <h4>Выберите типы проверок:</h4>
+                    <label style="display: block; margin: 10px 0;">
+                        <input type="checkbox" id="check-existence" checked>
+                        <strong>Проверка существования файлов</strong>
+                        <br><small style="color: #666;">Проверить, что все файлы из базы данных существуют на
+                            диске</small>
+                    </label>
+                    <label style="display: block; margin: 10px 0;">
+                        <input type="checkbox" id="check-crc32" checked>
+                        <strong>Проверка CRC32 хэшей</strong>
+                        <br><small style="color: #666;">Проверить, что содержимое файлов не изменилось (может занять
+                            много времени)</small>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <h4>Настройки производительности:</h4>
+                    <label for="integrity-thread-count">Количество потоков:</label>
+                    <select id="integrity-thread-count" style="margin-left: 10px; padding: 5px;">
+                        <option value="1">1 поток</option>
+                        <option value="2">2 потока</option>
+                        <option value="4" selected>4 потока</option>
+                        <option value="8">8 потоков</option>
+                        <option value="16">16 потоков</option>
+                    </select>
+                    <br><small style="color: #666;">Больше потоков = быстрее проверка, но больше нагрузка на
+                        систему</small>
+                </div>
+
+                <!-- Progress section -->
+                <div id="integrity-progress-section"
+                    style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
+                    <h4>Прогресс проверки:</h4>
+                    <div class="progress-bar"
+                        style="width: 100%; height: 25px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin: 10px 0;">
+                        <div id="integrity-progress-fill"
+                            style="height: 100%; background: linear-gradient(90deg, #28a745, #20c997); width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">
+                            0%</div>
+                    </div>
+                    <div id="integrity-progress-status" style="font-size: 14px; color: #666; margin-bottom: 10px;">
+                        Инициализация...</div>
+                    <button class="btn btn-warning" onclick="stopIntegrityCheck()" id="integrity-stop-btn"
+                        style="display: none;">⏹️ Остановить проверку</button>
+                </div>
+
+                <div id="integrity-results" style="display: none; margin-top: 20px;">
+                    <h4 style="font-size: 18px; margin-bottom: 15px;">Результаты проверки:</h4>
+                    <div id="integrity-summary" style="margin-bottom: 20px; font-size: 16px;"></div>
+                    <div id="integrity-details"
+                        style="max-height: 500px; overflow-y: auto; font-size: 14px; line-height: 1.6;"></div>
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeIntegrityCheckModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="startIntegrityCheck()" id="integrity-start-btn">🔍 Начать
+                    проверку</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Database Restore Modal -->
+    <div id="restore-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Восстановление базы данных</h3>
+                <span class="close" onclick="closeRestoreModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="backup-file-path">Путь к файлу резервной копии:</label>
+                    <input type="text" id="backup-file-path"
+                        placeholder="Например: ./backup_2025-10-25T12-00-00-000Z.json" style="width: 100%;">
+                    <p style="margin-top: 5px; color: #7f8c8d; font-size: 12px;">
+                        Укажите полный путь к JSON файлу резервной копии
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label>Режим восстановления:</label>
+                    <div style="margin-top: 8px;">
+                        <label style="display: block; margin-bottom: 8px;">
+                            <input type="radio" name="restore-mode" value="replace" checked style="margin-right: 8px;">
+                            <strong>Заменить</strong> - удалить все текущие данные и загрузить из копии
+                        </label>
+                        <label style="display: block;">
+                            <input type="radio" name="restore-mode" value="merge" style="margin-right: 8px;">
+                            <strong>Объединить</strong> - добавить данные из копии к существующим (дубликаты
+                            игнорируются)
+                        </label>
+                    </div>
+                </div>
+
+                <div
+                    style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 6px; border: 1px solid #ffeaa7;">
+                    <strong>⚠️ Внимание:</strong>
+                    <ul style="margin: 8px 0; padding-left: 20px; font-size: 14px;">
+                        <li>Режим "Заменить" полностью очистит текущую базу данных</li>
+                        <li>Рекомендуется создать резервную копию перед восстановлением</li>
+                        <li>Операция необратима - будьте осторожны</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeRestoreModal()">Отмена</button>
+                <button class="btn btn-warning" onclick="startRestore()" id="restore-start-btn">📥 Восстановить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Copy/Move Destination Modal -->
+    <div id="destination-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="destination-modal-title">Выберите папку назначения</h3>
+                <span class="close" onclick="closeDestinationModal()">&times;</span>
+            </div>
+            <div id="destination-body">
+                <div class="form-group">
+                    <label for="destination-path">Папка назначения:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="destination-path" placeholder="Введите путь или нажмите Обзор...">
+                        <button class="btn btn-secondary" onclick="browseDestination()">📂 Обзор</button>
+                    </div>
+                </div>
+
+                <div id="destination-files-list"
+                    style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #f8f9fa;">
+                    <!-- Selected files list will be populated here -->
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeDestinationModal()">Отмена</button>
+                <button class="btn btn-primary" id="destination-confirm-btn"
+                    onclick="confirmDestinationOperation()">Выполнить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scan Confirmation Modal -->
+    <div id="scan-confirm-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Подтверждение сканирования</h3>
+                <span class="close" onclick="closeScanConfirmModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <h4>Выбранные папки для сканирования:</h4>
+                    <div id="scan-folders-list"
+                        style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #f8f9fa; border-radius: 4px;">
+                        <!-- Selected folders will be listed here -->
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label
+                        style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #e8f4fd; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" id="scan-recursive-checkbox" checked
+                            style="width: 20px; height: 20px; cursor: pointer;">
+                        <div>
+                            <strong>Рекурсивное сканирование</strong>
+                            <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">
+                                Если включено, сканируются все подпапки. Если выключено, сканируется только верхний
+                                уровень выбранных папок.
+                            </p>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="scan-thread-count">Количество потоков:</label>
+                    <input type="number" id="scan-thread-count" min="1" max="32" value="8" style="width: 100px;">
+                </div>
+
                 <div class="form-group">
                     <label style="display: flex; align-items: center; gap: 10px;">
                         <input type="checkbox" id="scan-calculate-crc32" checked>
@@ -1508,15 +1893,121 @@
         </div>
     </div>
 
+    <!-- Rescan Settings Modal -->
+    <div id="rescan-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>⚙️ Настройки пересканирования</h3>
+                <button class="close-btn" onclick="closeRescanModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="rescan-items-list" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; max-height: 150px; overflow-y: auto;">
+                    <!-- Items will be populated here -->
+                </div>
 
-    
+                <div class="form-group">
+                    <label for="rescan-recursive">
+                        <input type="checkbox" id="rescan-recursive" checked>
+                        📁 Рекурсивное сканирование (включая вложенные папки)
+                    </label>
+                    <small style="display: block; margin-top: 5px; color: #666;">
+                        Если отключено, будут отсканированы только файлы в выбранной папке
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="rescan-threads">
+                        ⚡ Количество потоков: <span id="rescan-threads-value">4</span>
+                    </label>
+                    <input type="range" id="rescan-threads" min="4" max="8" value="4" step="1" 
+                           style="width: 100%;" oninput="document.getElementById('rescan-threads-value').textContent = this.value">
+                    <small style="display: block; margin-top: 5px; color: #666;">
+                        Больше потоков = быстрее, но выше нагрузка на систему
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="rescan-calculate-crc32">
+                        <input type="checkbox" id="rescan-calculate-crc32" checked>
+                        🔐 Вычислять CRC32 контрольные суммы
+                    </label>
+                    <small style="display: block; margin-top: 5px; color: #666;">
+                        Необходимо для проверки целостности файлов
+                    </small>
+                </div>
+
+                <div style="background: #fff3cd; padding: 12px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #ffc107;">
+                    <strong>⚠️ Внимание:</strong> Все старые записи будут удалены и заменены новыми данными.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeRescanModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="startRescan()">🔄 Начать пересканирование</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rescan Progress Modal -->
+    <div id="rescan-progress-modal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>🔄 Пересканирование</h3>
+            </div>
+            <div class="modal-body">
+                <div class="progress-bar" style="height: 30px; margin-bottom: 15px;">
+                    <div class="progress-fill" id="rescan-progress-fill" style="width: 0%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                        0%
+                    </div>
+                </div>
+
+                <div id="rescan-progress-details" style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px;">
+                    <div style="margin-bottom: 10px;">
+                        <strong>Статус:</strong> <span id="rescan-status">Инициализация...</span>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>Обработано:</strong> <span id="rescan-processed">0</span> / <span id="rescan-total">0</span> файлов
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>Скорость:</strong> <span id="rescan-speed">0</span> файлов/сек
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>Прошло времени:</strong> <span id="rescan-elapsed">0:00</span>
+                    </div>
+                    <div>
+                        <strong>Осталось:</strong> <span id="rescan-remaining">Вычисление...</span>
+                    </div>
+                </div>
+
+                <div id="rescan-current-file" style="margin-top: 15px; padding: 10px; background: #e3f2fd; border-radius: 6px; font-size: 12px; word-break: break-all;">
+                    <strong>Текущий файл:</strong> <span id="rescan-current-filename">-</span>
+                </div>
+
+                <div style="text-align: center; margin-top: 20px;">
+                    <button id="rescan-stop-btn" class="btn btn-danger" onclick="stopRescan()">
+                        ⏹️ Остановить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
     <!-- Accessibility Manager (load first) -->
     <script src="accessibility-manager.js"></script>
-    
+
+    <!-- Refactored Modules -->
+    <script src="js/api-client.js"></script>
+    <script src="js/ui-utils.js"></script>
+    <script src="js/file-tree.js"></script>
+    <script src="js/scan-manager.js"></script>
+    <script src="js/archive-manager.js"></script>
+
     <!-- Main Application -->
     <script src="app.js"></script>
-    
+
     <!-- Screen Reader Announcements -->
     <div id="sr-announcements" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 </body>
+
 </html>

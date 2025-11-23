@@ -1,9 +1,15 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FileStash Simple - File Manager</title>
+    <meta name="description" content="Modern file manager with accessibility features">
+    <title>Filestash Super - Modern File Manager</title>
+    
+    <!-- Modern Styles -->
+    <link rel="stylesheet" href="modern-styles.css">
+    
+    <!-- Legacy Styles (will be gradually replaced) -->
     <style>
         * {
             margin: 0;
@@ -375,11 +381,11 @@
 
         .modal-content {
             background-color: white;
-            margin: 15% auto;
+            margin: 5% auto;
             padding: 20px;
             border-radius: 8px;
-            width: 80%;
-            max-width: 500px;
+            width: 95%;
+            max-width: 1200px;
         }
 
         .modal-header {
@@ -429,11 +435,16 @@
 
             .modal-content {
                 width: 95%;
-                margin: 10% auto;
+                margin: 5% auto;
             }
 
             .file-browser {
                 max-height: 200px;
+            }
+            
+            /* Stack archive modal columns vertically on mobile */
+            #archive-body {
+                grid-template-columns: 1fr !important;
             }
         }
 
@@ -622,6 +633,7 @@
 
         .tree-node.selected {
             background-color: #e3f2fd;
+            border-left: 3px solid #2196f3;
         }
 
         .tree-node.directory {
@@ -830,22 +842,214 @@
             .tree-node[data-level="4"] { padding-left: 72px; }
             .tree-node[data-level="5"] { padding-left: 88px; }
         }
+
+        /* Dark Theme Text Color Fixes - Bright Green */
+        [data-theme="dark"] body {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .header h1 {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .form-group label {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] th {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .tree-actions-panel h4 {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .tree-selected-count {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .close:hover {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] h1, 
+        [data-theme="dark"] h2, 
+        [data-theme="dark"] h3, 
+        [data-theme="dark"] h4, 
+        [data-theme="dark"] h5, 
+        [data-theme="dark"] h6 {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] p {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] label {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .modal-header h3 {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .modal-body {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .app-title {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .toolbar-label {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] span {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] div {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] #directory-tree {
+            background-color: #000000 !important;
+        }
+
+        [data-theme="dark"] .directory-tree {
+            background-color: #000000 !important;
+        }
+
+        [data-theme="dark"] .tree-item {
+            background-color: #000000 !important;
+            color: #7df57d !important;
+            border-color: #1a1a1a !important;
+        }
+
+        [data-theme="dark"] .tree-item:hover {
+            background-color: #1a1a1a !important;
+            border-color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .tree-item-header {
+            background-color: #000000 !important;
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .tree-item.in-database {
+            background-color: rgba(125, 245, 125, 0.15) !important;
+            border-left-color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .tree-item.in-database:hover {
+            background-color: rgba(125, 245, 125, 0.25) !important;
+            border-color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .expand-icon {
+            color: #7df57d !important;
+            background-color: transparent !important;
+        }
+
+        [data-theme="dark"] .expand-icon:hover {
+            background-color: #1a1a1a !important;
+        }
+
+        [data-theme="dark"] .folder-icon {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .folder-name {
+            color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .loading {
+            background-color: #000000 !important;
+            color: #7df57d !important;
+        }
+
+        /* Context Menu Dark Theme */
+        [data-theme="dark"] #tree-context-menu {
+            background-color: #000000 !important;
+            border-color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .context-menu {
+            background-color: #000000 !important;
+            border-color: #7df57d !important;
+        }
+
+        [data-theme="dark"] .context-menu-item {
+            color: #7df57d !important;
+            background-color: #000000 !important;
+        }
+
+        [data-theme="dark"] .context-menu-item:hover {
+            background-color: #1a1a1a !important;
+            color: #7df57d !important;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📁 FileStash Simple</h1>
-            <p>Простой и быстрый файловый менеджер</p>
-        </div>
+    <div class="app-container">
+        <!-- Modern Header with Accessibility Toolbar -->
+        <header class="app-header" role="banner">
+            <div class="header-top">
+                <h1 class="app-title">📁 Filestash Super</h1>
+                
+                <!-- Accessibility Toolbar -->
+                <div class="accessibility-toolbar" role="toolbar" aria-label="Настройки доступности">
+                    <span class="toolbar-label">Доступность:</span>
+                    
+                    <button class="icon-btn" onclick="decreaseFontSize()" 
+                            aria-label="Уменьшить размер шрифта" title="Уменьшить шрифт (Ctrl + -)">
+                        A-
+                    </button>
+                    
+                    <span id="font-size-display" aria-live="polite" style="min-width: 50px; text-align: center; font-weight: 600;">
+                        100%
+                    </span>
+                    
+                    <button class="icon-btn" onclick="increaseFontSize()" 
+                            aria-label="Увеличить размер шрифта" title="Увеличить шрифт (Ctrl + +)">
+                        A+
+                    </button>
+                    
+                    <button class="icon-btn" onclick="toggleTheme()" 
+                            aria-label="Переключить тему" title="Светлая/Темная тема">
+                        🌙 Тема
+                    </button>
+                </div>
+            </div>
+            
+            <p style="color: var(--text-secondary); margin-top: var(--spacing-sm);">
+                Современный файловый менеджер с поддержкой доступности
+            </p>
+        </header>
 
-        <!-- Tabs -->
-        <div class="tabs">
-            <button class="tab active" onclick="showTab('scan')">🔍 Сканирование</button>
-            <button class="tab" onclick="showTab('search')">🗄️ База данных</button>
-            <button class="tab" onclick="showTab('history')">📊 История сканирования</button>
-            <button class="tab" onclick="showTab('settings')">⚙️ Настройки</button>
-        </div>
+        <!-- Navigation Tabs -->
+        <nav class="tabs-container" role="tablist" aria-label="Основная навигация">
+            <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="scan-tab" 
+                    onclick="showTab('scan')" id="tab-scan">
+                🔍 Сканирование
+            </button>
+            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="search-tab" 
+                    onclick="showTab('search')" id="tab-search">
+                🗄️ База данных
+            </button>
+            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="history-tab" 
+                    onclick="showTab('history')" id="tab-history">
+                📊 История
+            </button>
+            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="settings-tab" 
+                    onclick="showTab('settings')" id="tab-settings">
+                ⚙️ Настройки
+            </button>
+        </nav>
+
+        <!-- Main Content -->
+        <main id="main-content" role="main">
 
         <!-- Scan Tab -->
         <div id="scan-tab" class="tab-content active">
@@ -872,7 +1076,7 @@
             </div>
 
             <div style="margin-top: 15px;">
-                <button class="btn btn-success" onclick="scanSelectedDirectories()" id="scan-btn" disabled>
+                <button class="btn btn-success" onclick="showScanConfirmModal()" id="scan-btn" disabled>
                     🚀 Сканировать выбранные папки (<span id="selected-count">0</span>)
                 </button>
             </div>
@@ -957,24 +1161,7 @@
         <!-- Settings Tab -->
         <div id="settings-tab" class="tab-content">
             <h2>Настройки</h2>
-            
-            <div class="form-group">
-                <label for="thread-count">Количество потоков для сканирования:</label>
-                <input type="number" id="thread-count" min="1" max="32" value="8" style="width: 100px;">
-                <p style="margin-top: 5px; color: #7f8c8d; font-size: 12px;">
-                    Рекомендуется: 8-16 потоков для вашего процессора 12/24. Больше потоков = быстрее сканирование.
-                </p>
-            </div>
-            
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="calculate-crc32" checked style="margin-right: 8px;">
-                    Вычислять CRC32 для всех файлов
-                </label>
-                <p style="margin-top: 5px; color: #7f8c8d; font-size: 12px;">
-                    Отключение CRC32 значительно ускорит сканирование, но уберет возможность поиска дубликатов
-                </p>
-            </div>
+            <!-- Scan settings moved to confirmation modal -->
             
             <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 6px; font-size: 12px;">
                 <strong>💡 Оптимизации производительности:</strong>
@@ -993,7 +1180,7 @@
             <div class="form-group">
                 <h3>Управление базой данных</h3>
                 <button class="btn btn-success" onclick="backupDatabase()">💾 Создать резервную копию</button>
-                <button class="btn btn-info" onclick="showRestoreModal()">📥 Восстановить из копии</button>
+                <button class="btn btn-info" onclick="showDatabaseRestoreModal()">📥 Восстановить из копии</button>
                 <button class="btn btn-warning" onclick="cleanupDatabase()">🧹 Очистить несуществующие файлы</button>
                 <button class="btn btn-primary" onclick="checkDatabaseIntegrity()">🔍 Проверить целостность</button>
                 <button class="btn btn-info" onclick="compactDatabase()">🗜️ Сжать базу данных</button>
@@ -1079,6 +1266,10 @@
             <button class="btn btn-secondary" onclick="nextPage()" id="next-btn" disabled>Вперед →</button>
         </div>
     </div>
+        </main>
+        <!-- End Main Content -->
+    </div>
+    <!-- End App Container -->
 
     <!-- Modal for file operations -->
     <div id="file-operation-modal" class="modal">
@@ -1104,49 +1295,63 @@
                 <h3>Создание архива</h3>
                 <span class="close" onclick="closeArchiveModal()">&times;</span>
             </div>
-            <div id="archive-body">
-                <div class="form-group">
-                    <label for="archive-destination">Папка для сохранения:</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="text" id="archive-destination" placeholder="Введите путь или нажмите Обзор...">
-                        <button class="btn btn-secondary" onclick="browseArchiveDestination()">📂 Обзор</button>
+            <div id="archive-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <!-- Left column: Settings -->
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div class="form-group">
+                        <label for="archive-destination">Папка для сохранения:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="archive-destination" placeholder="Введите путь или нажмите Обзор...">
+                            <button class="btn btn-secondary" onclick="browseArchiveDestination()">📂 Обзор</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="archive-name">Имя архива:</label>
+                        <input type="text" id="archive-name" placeholder="archive">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="archive-format">Формат архива:</label>
+                        <select id="archive-format" onchange="updateArchiveExtension()">
+                            <option value="">Загрузка форматов...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="archive-password">Пароль (необязательно):</label>
+                        <input type="password" id="archive-password" placeholder="Оставьте пустым для архива без пароля">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="archive-compression">Степень сжатия:</label>
+                        <select id="archive-compression">
+                            <option value="0">Без сжатия</option>
+                            <option value="1">Быстрое</option>
+                            <option value="3" selected>Нормальное</option>
+                            <option value="5">Максимальное</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="archive-multivolume" onchange="toggleMultivolume()">
+                            Многотомный архив
+                        </label>
+                    </div>
+                    
+                    <div class="form-group" id="volume-size-group" style="display: none;">
+                        <label for="archive-volume-size">Размер тома (МБ):</label>
+                        <input type="number" id="archive-volume-size" placeholder="100" min="1" max="4096">
                     </div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="archive-name">Имя архива:</label>
-                    <input type="text" id="archive-name" placeholder="archive">
-                </div>
-                
-                <div class="form-group">
-                    <label for="archive-password">Пароль (необязательно):</label>
-                    <input type="password" id="archive-password" placeholder="Оставьте пустым для архива без пароля">
-                </div>
-                
-                <div class="form-group">
-                    <label for="archive-compression">Степень сжатия:</label>
-                    <select id="archive-compression">
-                        <option value="0">Без сжатия</option>
-                        <option value="1">Быстрое</option>
-                        <option value="3" selected>Нормальное</option>
-                        <option value="5">Максимальное</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="archive-multivolume" onchange="toggleMultivolume()">
-                        Многотомный архив
-                    </label>
-                </div>
-                
-                <div class="form-group" id="volume-size-group" style="display: none;">
-                    <label for="archive-volume-size">Размер тома (МБ):</label>
-                    <input type="number" id="archive-volume-size" placeholder="100" min="1" max="4096">
-                </div>
-                
-                <div id="archive-files-list" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
-                    <!-- Files list will be populated here -->
+                <!-- Right column: Files list -->
+                <div style="display: flex; flex-direction: column;">
+                    <label style="margin-bottom: 10px; font-weight: bold;">Файлы для архивации:</label>
+                    <div id="archive-files-list" style="flex: 1; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f8f9fa;">
+                        <!-- Files list will be populated here -->
+                    </div>
                 </div>
             </div>
             <div style="text-align: right; margin-top: 20px;">
@@ -1184,6 +1389,7 @@
         <div class="context-menu-item" onclick="contextDeleteFile()">🗑️ Удалить</div>
         <div class="context-menu-item" onclick="contextArchiveFile()">🗜️ Создать архив</div>
         <div class="context-menu-item" onclick="contextIntegrityCheck()">🔍 Проверка целостности</div>
+        <div class="context-menu-item" id="context-rescan-item" onclick="contextRescan()">🔄 Пересканировать</div>
     </div>
 
     <!-- Integrity Check Modal -->
@@ -1321,6 +1527,52 @@
         </div>
     </div>
 
+    <!-- Scan Confirmation Modal -->
+    <div id="scan-confirm-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Подтверждение сканирования</h3>
+                <span class="close" onclick="closeScanConfirmModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <h4>Выбранные папки для сканирования:</h4>
+                    <div id="scan-folders-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #f8f9fa; border-radius: 4px;">
+                        <!-- Selected folders will be listed here -->
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #e8f4fd; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" id="scan-recursive-checkbox" checked style="width: 20px; height: 20px; cursor: pointer;">
+                        <div>
+                            <strong>Рекурсивное сканирование</strong>
+                            <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">
+                                Если включено, сканируются все подпапки. Если выключено, сканируется только верхний уровень выбранных папок.
+                            </p>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="scan-thread-count">Количество потоков:</label>
+                    <input type="number" id="scan-thread-count" min="1" max="32" value="8" style="width: 100px;">
+                </div>
+                
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="scan-calculate-crc32" checked>
+                        <span>Вычислять CRC32 для файлов</span>
+                    </label>
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeScanConfirmModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="confirmScanOperation()">🚀 Начать сканирование</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Progress Modal -->
     <div id="progress-modal" class="modal">
         <div class="modal-content">
@@ -1343,6 +1595,13 @@
 
 
     
+    <!-- Accessibility Manager (load first) -->
+    <script src="accessibility-manager.js"></script>
+    
+    <!-- Main Application -->
     <script src="app.js"></script>
+    
+    <!-- Screen Reader Announcements -->
+    <div id="sr-announcements" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

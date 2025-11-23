@@ -14,7 +14,8 @@ let availableArchivers = [];
 let fileBrowserData = [];
 let selectedDestinationPath = '';
 let currentBrowserPath = 'drives';
-let currentScanId = null;
+// let currentScanId = null;
+ // MOVED TO: scan-manager.js
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function() {
@@ -587,6 +588,9 @@ async function stopScanning() {
 }
 
 // Rescan selected files/folders from database
+let rescanSelectedItems = [];
+let currentRescanId = null;
+
 async function rescanSelected() {
     const selectedItems = getSelectedDatabaseItems();
     
@@ -595,49 +599,73 @@ async function rescanSelected() {
         return;
     }
     
-    // Confirm action
+    // Store selected items
+    rescanSelectedItems = selectedItems;
+    
+    // Show items in modal
     const itemCount = selectedItems.length;
     const itemsList = selectedItems.map(item => {
         const name = item.full_path.split(/[\\\/]/).pop();
-        return `${item.is_directory ? '📁' : '📄'} ${name}`;
-    }).slice(0, 10).join('\n');
+        return `<div style="padding: 5px;">${item.is_directory ? '📁' : '📄'} ${name}</div>`;
+    }).slice(0, 10).join('');
     
-    const moreText = itemCount > 10 ? `\n... и еще ${itemCount - 10} элементов` : '';
+    const moreText = itemCount > 10 ? `<div style="padding: 5px; color: #666;">... и еще ${itemCount - 10} элементов</div>` : '';
     
-    const confirmed = confirm(
-        `Пересканировать ${itemCount} элемент(ов)?\n\n${itemsList}${moreText}\n\nСтарые записи будут удалены и заменены новыми данными.`
-    );
+    document.getElementById('rescan-items-list').innerHTML = `
+        <div style="font-weight: bold; margin-bottom: 10px;">Выбрано элементов: ${itemCount}</div>
+        ${itemsList}
+        ${moreText}
+    `;
     
-    if (!confirmed) return;
+    // Show modal
+    document.getElementById('rescan-modal').style.display = 'flex';
+}
+
+function closeRescanModal() {
+    document.getElementById('rescan-modal').style.display = 'none';
+}
+
+async function startRescan() {
+    // Get settings from modal
+    const recursive = document.getElementById('rescan-recursive').checked;
+    const threads = parseInt(document.getElementById('rescan-threads').value) || 4;
+    const calculateCrc32 = document.getElementById('rescan-calculate-crc32').checked;
+    
+    // Close settings modal
+    closeRescanModal();
+    
+    // Show progress modal
+    document.getElementById('rescan-progress-modal').style.display = 'flex';
+    document.getElementById('rescan-status').textContent = 'Инициализация...';
+    document.getElementById('rescan-progress-fill').style.width = '0%';
+    document.getElementById('rescan-progress-fill').textContent = '0%';
     
     try {
         // Extract full paths from selected items
-        const paths = selectedItems.map(item => item.full_path);
-        
-        // Get scan settings
-        const threads = parseInt(document.getElementById('thread-count').value) || 4;
-        const calculateCrc32 = document.getElementById('calculate-crc32').checked;
-        
-        showMessage('🔄 Начинается пересканирование...', 'info');
+        const paths = rescanSelectedItems.map(item => ({
+            path: item.full_path,
+            recursive: recursive
+        }));
         
         // Call rescan API
         const response = await apiCall('/database/rescan', {
             method: 'POST',
             body: JSON.stringify({ 
-                paths: paths,
+                paths: paths.map(p => p.path),
                 threads: threads,
                 calculateCrc32: calculateCrc32
             })
         });
         
         if (response.success) {
-            showMessage(
-                `✅ Пересканирование начато\nУдалено старых записей: ${response.deletedRecords}`,
-                'success'
-            );
+            currentRescanId = response.scanId;
+            document.getElementById('rescan-status').textContent = `Удалено старых записей: ${response.deletedRecords}`;
             
             // Monitor scan progress
-            const scanResult = await monitorScanProgress(response.scanId);
+            const scanResult = await monitorRescanProgress(response.scanId);
+            
+            // Close progress modal
+            document.getElementById('rescan-progress-modal').style.display = 'none';
             
             // Show completion message
             if (scanResult && scanResult.status === 'completed') {
@@ -657,12 +685,98 @@ async function rescanSelected() {
             refreshCurrentView(true);
             loadStats();
         } else {
+            document.getElementById('rescan-progress-modal').style.display = 'none';
             showMessage('❌ Ошибка при пересканировании', 'error');
         }
         
     } catch (error) {
+        document.getElementById('rescan-progress-modal').style.display = 'none';
         showMessage('❌ Ошибка при пересканировании: ' + error.message, 'error');
         console.error('Rescan error:', error);
+    }
+}
+
+async function monitorRescanProgress(scanId) {
+    return new Promise((resolve) => {
+        const startTime = Date.now();
+        let lastProcessed = 0;
+        let lastTime = Date.now();
+        
+        const checkProgress = async () => {
+            try {
+                const progress = await apiCall(`/scan/progress/${scanId}`);
+                
+                if (progress.total > 0) {
+                    const percentage = Math.round((progress.processed / progress.total) * 100);
+                    document.getElementById('rescan-progress-fill').style.width = percentage + '%';
+                    document.getElementById('rescan-progress-fill').textContent = percentage + '%';
+                    
+                    document.getElementById('rescan-processed').textContent = progress.processed;
+                    document.getElementById('rescan-total').textContent = progress.total;
+                    
+                    // Calculate speed
+                    const now = Date.now();
+                    const timeDiff = (now - lastTime) / 1000;
+                    const processedDiff = progress.processed - lastProcessed;
+                    const speed = timeDiff > 0 ? Math.round(processedDiff / timeDiff) : 0;
+                    document.getElementById('rescan-speed').textContent = speed;
+                    
+                    lastProcessed = progress.processed;
+                    lastTime = now;
+                    
+                    // Calculate elapsed time
+                    const elapsed = Math.round((now - startTime) / 1000);
+                    const minutes = Math.floor(elapsed / 60);
+                    const seconds = elapsed % 60;
+                    document.getElementById('rescan-elapsed').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    
+                    // Calculate remaining time
+                    if (speed > 0) {
+                        const remaining = Math.round((progress.total - progress.processed) / speed);
+                        const remMin = Math.floor(remaining / 60);
+                        const remSec = remaining % 60;
+                        document.getElementById('rescan-remaining').textContent = `${remMin}:${remSec.toString().padStart(2, '0')}`;
+                    }
+                    
+                    document.getElementById('rescan-status').textContent = progress.status || 'Сканирование...';
+                }
+                
+                if (progress.status === 'completed' || progress.status === 'cancelled') {
+                    document.getElementById('rescan-stop-btn').style.display = 'none';
+                    currentRescanId = null;
+                    resolve(progress);
+                } else {
+                    setTimeout(checkProgress, 500);
+                }
+            } catch (error) {
+                console.error('Error checking rescan progress:', error);
+                setTimeout(checkProgress, 1000);
+            }
+        };
+        
+        checkProgress();
+    });
+}
+
+async function stopRescan() {
+    if (!currentRescanId) {
+        showMessage('Нет активного пересканирования для остановки', 'error');
+        return;
+    }
+    
+    try {
+        document.getElementById('rescan-stop-btn').disabled = true;
+        document.getElementById('rescan-stop-btn').textContent = '⏳ Остановка...';
+        
+        await apiCall(`/scan/stop/${currentRescanId}`, { method: 'POST' });
+        
+        document.getElementById('rescan-status').textContent = 'Запрос на остановку отправлен...';
+        showMessage('Запрос на остановку пересканирования отправлен...', 'info');
+        
+    } catch (error) {
+        showMessage('Ошибка при остановке пересканирования: ' + error.message, 'error');
+        document.getElementById('rescan-stop-btn').disabled = false;
+        document.getElementById('rescan-stop-btn').textContent = '⏹️ Остановить';
     }
 }
 
@@ -715,18 +829,27 @@ function renderScanHistory(scans) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${scans.map(scan => `
+                    ${scans.map(scan => {
+                        // Normalize paths to array of strings (handle both old and new format)
+                        const pathsArray = Array.isArray(scan.paths) 
+                            ? scan.paths.map(p => typeof p === 'string' ? p : (p.path || String(p)))
+                            : [String(scan.paths)];
+                        
+                        const pathsText = pathsArray.join(', ');
+                        
+                        return `
                         <tr>
                             <td>${formatDateTime(scan.startTime)}</td>
                             <td><span class="status-badge status-${scan.status}">${getStatusText(scan.status)}</span></td>
-                            <td class="paths-list" title="${scan.paths.join(', ')}">${scan.paths.join(', ')}</td>
+                            <td class="paths-list" title="${pathsText}">${pathsText}</td>
                             <td>${formatScanTime(Math.round(scan.duration / 1000))}</td>
                             <td>${scan.threadCount}</td>
                             <td>${scan.filesProcessed.toLocaleString()}</td>
                             <td>${scan.totalFound.toLocaleString()}</td>
                             <td>${scan.calculateCrc32 ? '✅' : '❌'}</td>
                         </tr>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </tbody>
             </table>
         </div>
@@ -1775,7 +1898,7 @@ function renderLazyTreeNode(node, level) {
     const isDirectory = node.isDirectory;
     const hasChildren = node.hasChildren;
     const nodeId = `tree-node-${encodeURIComponent(node.path)}`;
-    const inDatabase = node.inDatabase !== false;
+    const inDatabase = node.inDatabase === true;
     const existsOnDisk = node.existsOnDisk !== false;
     
     let nodeClasses = `tree-node ${isDirectory ? 'directory' : 'file'}`;
@@ -1904,7 +2027,7 @@ function createTreeNode(node, level) {
     const isDirectory = node.isDirectory;
     const hasChildren = isDirectory && node.children && Object.keys(node.children).length > 0;
     const nodeId = `tree-node-${encodeURIComponent(node.path)}`;
-    const inDatabase = node.inDatabase !== false; // Default to true if not specified
+    const inDatabase = node.inDatabase === true; // Only true if explicitly set
     const existsOnDisk = node.existsOnDisk !== false; // Default to true if not specified
     
     // Add classes for styling
@@ -2547,7 +2670,8 @@ function makeTreeNodesFocusable() {
 }
 
 // Selected tree files
-let selectedTreeFiles = new Set();
+// let selectedTreeFiles = new Set();
+ // MOVED TO: file-tree.js
 
 // Helper function to get all selected items (from both table and tree views)
 function getAllSelectedFiles() {

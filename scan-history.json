@@ -1,16 +1,453 @@
 {
   "scans": [
     {
+      "id": "1763890441331",
+      "startTime": "2025-11-23T09:34:01.331Z",
+      "endTime": "2025-11-23T09:35:29.599Z",
+      "duration": 88268,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Из Сети"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 6918,
+      "totalFound": 6918,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": true
+    },
+    {
+      "id": "1763890311484",
+      "startTime": "2025-11-23T09:31:51.484Z",
+      "endTime": "2025-11-23T09:33:25.445Z",
+      "duration": 93961,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\S\\StarSession\\Julia",
+        "P:\\Video\\S",
+        "P:\\Photo\\Из Сети"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 7949,
+      "totalFound": 7949,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": true
+    },
+    {
+      "id": "1763889958386",
+      "startTime": "2025-11-23T09:25:58.386Z",
+      "endTime": "2025-11-23T09:27:32.583Z",
+      "duration": 94197,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\Из Сети"
+      ],
+      "threadCount": 14,
+      "filesProcessed": 6918,
+      "totalFound": 6918,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763889878003",
+      "startTime": "2025-11-23T09:24:38.003Z",
+      "endTime": "2025-11-23T09:24:38.455Z",
+      "duration": 452,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\S\\StarSession\\Julia"
+      ],
+      "threadCount": 14,
+      "filesProcessed": 58,
+      "totalFound": 58,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763889826302",
+      "startTime": "2025-11-23T09:23:46.302Z",
+      "endTime": "2025-11-23T09:24:12.407Z",
+      "duration": 26105,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\S",
+        "P:\\Video\\S\\Sandra Teenmodel",
+        "P:\\Video\\S\\Schoolmodels",
+        "P:\\Video\\S\\Select Sets Studio Sequel",
+        "P:\\Video\\S\\Shadowkittens.info",
+        "P:\\Video\\S\\Showstars",
+        "P:\\Video\\S\\Sierra Model",
+        "P:\\Video\\S\\Skye Model",
+        "P:\\Video\\S\\StarSession",
+        "P:\\Video\\S\\Steppe Flower",
+        "P:\\Video\\S\\Sveta Model",
+        "P:\\Video\\S\\Sweet Agency"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 71,
+      "totalFound": 71,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763889135586",
+      "startTime": "2025-11-23T09:12:15.586Z",
+      "endTime": "2025-11-23T09:12:19.185Z",
+      "duration": 3599,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\S\\StarSession\\Julia"
+      ],
+      "threadCount": 14,
+      "filesProcessed": 58,
+      "totalFound": 58,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763889123202",
+      "startTime": "2025-11-23T09:12:03.202Z",
+      "endTime": "2025-11-23T09:12:03.236Z",
+      "duration": 34,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\S"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763889108655",
+      "startTime": "2025-11-23T09:11:48.655Z",
+      "endTime": "2025-11-23T09:11:48.787Z",
+      "duration": 132,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\A"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 2,
+      "totalFound": 2,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763888983489",
+      "startTime": "2025-11-23T09:09:43.489Z",
+      "endTime": "2025-11-23T09:11:20.241Z",
+      "duration": 96752,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\A\\Alina BalletStar (C)"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 92,
+      "totalFound": 92,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763887682643",
+      "startTime": "2025-11-23T08:48:02.643Z",
+      "endTime": "2025-11-23T08:49:09.340Z",
+      "duration": 66697,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\S\\StarSession",
+        "P:\\Video\\S\\StarSession\\Aleksandra",
+        "P:\\Video\\S\\StarSession\\Angelina",
+        "P:\\Video\\S\\StarSession\\Elena",
+        "P:\\Video\\S\\StarSession\\Isabella",
+        "P:\\Video\\S\\StarSession\\Julia",
+        "P:\\Video\\S\\StarSession\\Kathy",
+        "P:\\Video\\S\\StarSession\\Leyla",
+        "P:\\Video\\S\\StarSession\\Lilu",
+        "P:\\Video\\S\\StarSession\\Lina",
+        "P:\\Video\\S\\StarSession\\Lisa",
+        "P:\\Video\\S\\StarSession\\Maisie",
+        "P:\\Video\\S\\StarSession\\Michelle",
+        "P:\\Video\\S\\StarSession\\Mila",
+        "P:\\Video\\S\\StarSession\\Multi Models",
+        "P:\\Video\\S\\StarSession\\Natasha",
+        "P:\\Video\\S\\StarSession\\Nina",
+        "P:\\Video\\S\\StarSession\\Nita",
+        "P:\\Video\\S\\StarSession\\Olivia",
+        "P:\\Video\\S\\StarSession\\Savannah",
+        "P:\\Video\\S\\StarSession\\Sofie",
+        "P:\\Video\\S\\StarSession\\Taso",
+        "P:\\Video\\S\\StarSession\\Tika",
+        "P:\\Video\\S\\StarSession\\Viola",
+        "P:\\Video\\S",
+        "P:\\Video\\S\\Sandra Teenmodel",
+        "P:\\Video\\S\\Schoolmodels",
+        "P:\\Video\\S\\Select Sets Studio Sequel",
+        "P:\\Video\\S\\Shadowkittens.info",
+        "P:\\Video\\S\\Showstars",
+        "P:\\Video\\S\\Sierra Model",
+        "P:\\Video\\S\\Skye Model",
+        "P:\\Video\\S\\Steppe Flower",
+        "P:\\Video\\S\\Sveta Model",
+        "P:\\Video\\S\\Sweet Agency"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 539,
+      "totalFound": 539,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763887613857",
+      "startTime": "2025-11-23T08:46:53.857Z",
+      "endTime": "2025-11-23T08:46:57.494Z",
+      "duration": 3637,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\S\\StarSession\\Julia"
+      ],
+      "threadCount": 11,
+      "filesProcessed": 58,
+      "totalFound": 58,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763887453287",
+      "startTime": "2025-11-23T08:44:13.287Z",
+      "endTime": "2025-11-23T08:45:38.588Z",
+      "duration": 85301,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\A\\Alina BalletStar (C)"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 92,
+      "totalFound": 92,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763887446048",
+      "startTime": "2025-11-23T08:44:06.048Z",
+      "endTime": "2025-11-23T08:44:07.170Z",
+      "duration": 1122,
+      "status": "completed",
+      "paths": [
+        "P:\\Video\\A\\Alisa Model(amazing-models.com)"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 15,
+      "totalFound": 15,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763885294726",
+      "startTime": "2025-11-23T08:08:14.726Z",
+      "endTime": "2025-11-23T08:08:14.929Z",
+      "duration": 203,
+      "status": "completed",
+      "paths": [
+        "S:\\Фото\\Бабушка"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 25,
+      "totalFound": 25,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": true
+    },
+    {
+      "id": "1763882497669",
+      "startTime": "2025-11-23T07:21:37.669Z",
+      "endTime": "2025-11-23T07:21:39.055Z",
+      "duration": 1386,
+      "status": "completed",
+      "paths": [
+        "S:\\Фото\\Бабушка"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 25,
+      "totalFound": 25,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763882135705",
+      "startTime": "2025-11-23T07:15:35.705Z",
+      "endTime": "2025-11-23T07:15:36.766Z",
+      "duration": 1061,
+      "status": "completed",
+      "paths": [
+        "K:\\Аудиокниги\\Дин Кунц - Симфония тьмы (BIGBAG)"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 30,
+      "totalFound": 30,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763878435436",
+      "startTime": "2025-11-23T06:13:55.436Z",
+      "endTime": "2025-11-23T06:13:59.123Z",
+      "duration": 3687,
+      "status": "completed",
+      "paths": [
+        "K:\\Aparser\\config"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 580,
+      "totalFound": 580,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763875997056",
+      "startTime": "2025-11-23T05:33:17.056Z",
+      "endTime": "2025-11-23T05:33:30.340Z",
+      "duration": 13284,
+      "status": "completed",
+      "paths": [
+        "K:\\Аудиокниги\\Дин Кунц - Симфония тьмы (BIGBAG)"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 30,
+      "totalFound": 30,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763875391373",
+      "startTime": "2025-11-23T05:23:11.373Z",
+      "endTime": "2025-11-23T05:23:31.524Z",
+      "duration": 20151,
+      "status": "completed",
+      "paths": [
+        "K:\\Аудиокниги\\Дин Кунц - Симфония тьмы (BIGBAG)"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 30,
+      "totalFound": 30,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763833752641",
+      "startTime": "2025-11-22T17:49:12.641Z",
+      "endTime": "2025-11-22T17:59:06.487Z",
+      "duration": 593846,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\P\\Partymodels",
+        "P:\\Photo\\P\\Patti Model.com"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 50976,
+      "totalFound": 50976,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763833677515",
+      "startTime": "2025-11-22T17:47:57.515Z",
+      "endTime": "2025-11-22T17:48:37.190Z",
+      "duration": 39675,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\P\\Paizlee Rose",
+        "P:\\Photo\\P\\Pamy (Shiny-Flower.Com)"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 891,
+      "totalFound": 891,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763808808296",
+      "startTime": "2025-11-22T10:53:28.296Z",
+      "endTime": "2025-11-22T10:53:56.946Z",
+      "duration": 28650,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\D"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
+      "id": "1763806766914",
+      "startTime": "2025-11-22T10:19:26.914Z",
+      "endTime": "2025-11-22T10:19:56.575Z",
+      "duration": 29661,
+      "status": "completed",
+      "paths": [
+        "P:\\Photo\\F"
+      ],
+      "threadCount": 8,
+      "filesProcessed": 1,
+      "totalFound": 1,
+      "calculateCrc32": true,
+      "errors": [],
+      "cancelled": false,
+      "isRescan": false
+    },
+    {
       "id": "1763804191385",
       "startTime": "2025-11-22T09:36:31.385Z",
       "endTime": "2025-11-22T09:36:31.901Z",
       "duration": 516,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": true
-        }
+        "P:\\Test Data"
       ],
       "threadCount": 8,
       "filesProcessed": 451,
@@ -27,30 +464,12 @@
       "duration": 1263,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Modeling",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Models - Katarina",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Aimori",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Video",
-          "recursive": true
-        }
+        "P:\\Test Data",
+        "P:\\Test Data\\Photo",
+        "P:\\Test Data\\Photo\\Agency Modeling",
+        "P:\\Test Data\\Photo\\Agency Models - Katarina",
+        "P:\\Test Data\\Photo\\Aimori",
+        "P:\\Test Data\\Video"
       ],
       "threadCount": 8,
       "filesProcessed": 1359,
@@ -67,30 +486,12 @@
       "duration": 1292,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Modeling",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Models - Katarina",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Aimori",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Video",
-          "recursive": true
-        }
+        "P:\\Test Data",
+        "P:\\Test Data\\Photo",
+        "P:\\Test Data\\Photo\\Agency Modeling",
+        "P:\\Test Data\\Photo\\Agency Models - Katarina",
+        "P:\\Test Data\\Photo\\Aimori",
+        "P:\\Test Data\\Video"
       ],
       "threadCount": 8,
       "filesProcessed": 1359,
@@ -107,22 +508,10 @@
       "duration": 828,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Modeling",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Models - Katarina",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Aimori",
-          "recursive": true
-        }
+        "P:\\Test Data\\Photo\\Agency Modeling",
+        "P:\\Test Data\\Photo\\Agency Models - Katarina",
+        "P:\\Test Data\\Photo",
+        "P:\\Test Data\\Photo\\Aimori"
       ],
       "threadCount": 8,
       "filesProcessed": 880,
@@ -139,10 +528,7 @@
       "duration": 412,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Modeling",
-          "recursive": true
-        }
+        "P:\\Test Data\\Photo\\Agency Modeling"
       ],
       "threadCount": 8,
       "filesProcessed": 321,
@@ -159,10 +545,7 @@
       "duration": 37,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Modeling",
-          "recursive": false
-        }
+        "P:\\Test Data\\Photo\\Agency Modeling"
       ],
       "threadCount": 8,
       "filesProcessed": 1,
@@ -179,10 +562,7 @@
       "duration": 31,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": false
-        }
+        "P:\\Test Data"
       ],
       "threadCount": 8,
       "filesProcessed": 1,
@@ -199,10 +579,7 @@
       "duration": 78,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Photo\\A\\Amelia Star",
-          "recursive": false
-        }
+        "P:\\Photo\\A\\Amelia Star"
       ],
       "threadCount": 8,
       "filesProcessed": 1,
@@ -219,30 +596,12 @@
       "duration": 1482,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Photo\\U",
-          "recursive": false
-        },
-        {
-          "path": "P:\\Photo\\U\\Uknown model from ex.ua",
-          "recursive": false
-        },
-        {
-          "path": "P:\\Photo\\U\\Unknown Boosty Girl",
-          "recursive": false
-        },
-        {
-          "path": "P:\\Photo\\U\\Unknown Girl",
-          "recursive": false
-        },
-        {
-          "path": "P:\\Photo\\U\\Unknown model",
-          "recursive": false
-        },
-        {
-          "path": "P:\\Photo\\U\\Unsorted",
-          "recursive": false
-        }
+        "P:\\Photo\\U",
+        "P:\\Photo\\U\\Uknown model from ex.ua",
+        "P:\\Photo\\U\\Unknown Boosty Girl",
+        "P:\\Photo\\U\\Unknown Girl",
+        "P:\\Photo\\U\\Unknown model",
+        "P:\\Photo\\U\\Unsorted"
       ],
       "threadCount": 8,
       "filesProcessed": 2055,
@@ -259,10 +618,7 @@
       "duration": 55,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Photo\\A\\AdelK",
-          "recursive": false
-        }
+        "P:\\Photo\\A\\AdelK"
       ],
       "threadCount": 8,
       "filesProcessed": 1,
@@ -279,18 +635,9 @@
       "duration": 37,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Photo\\A\\adel",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Photo\\A\\adel\\K",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Photo\\A\\adel\\K\\Black Style",
-          "recursive": false
-        }
+        "P:\\Photo\\A\\adel",
+        "P:\\Photo\\A\\adel\\K",
+        "P:\\Photo\\A\\adel\\K\\Black Style"
       ],
       "threadCount": 8,
       "filesProcessed": 13,
@@ -307,10 +654,7 @@
       "duration": 249,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Photo\\A",
-          "recursive": false
-        }
+        "P:\\Photo\\A"
       ],
       "threadCount": 8,
       "filesProcessed": 1,
@@ -327,18 +671,9 @@
       "duration": 109,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Modeling",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Modeling\\Gabby",
-          "recursive": false
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Modeling\\Mackenzie",
-          "recursive": false
-        }
+        "P:\\Test Data\\Photo\\Agency Modeling",
+        "P:\\Test Data\\Photo\\Agency Modeling\\Gabby",
+        "P:\\Test Data\\Photo\\Agency Modeling\\Mackenzie"
       ],
       "threadCount": 8,
       "filesProcessed": 323,
@@ -355,10 +690,7 @@
       "duration": 28,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Modeling",
-          "recursive": false
-        }
+        "P:\\Test Data\\Photo\\Agency Modeling"
       ],
       "threadCount": 8,
       "filesProcessed": 1,
@@ -375,10 +707,7 @@
       "duration": 29,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": false
-        }
+        "P:\\Test Data"
       ],
       "threadCount": 8,
       "filesProcessed": 1,
@@ -395,14 +724,8 @@
       "duration": 140,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Video",
-          "recursive": false
-        }
+        "P:\\Test Data",
+        "P:\\Test Data\\Video"
       ],
       "threadCount": 8,
       "filesProcessed": 463,
@@ -419,10 +742,7 @@
       "duration": 35,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": false
-        }
+        "P:\\Test Data"
       ],
       "threadCount": 8,
       "filesProcessed": 1,
@@ -439,22 +759,10 @@
       "duration": 250818,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Video",
-          "recursive": true
-        },
-        {
-          "path": "P:\\Test Data\\Video\\Alisa Model(amazing-models.com)",
-          "recursive": false
-        },
-        {
-          "path": "P:\\Test Data\\Photo\\Agency Modeling",
-          "recursive": false
-        }
+        "P:\\Test Data",
+        "P:\\Test Data\\Video",
+        "P:\\Test Data\\Video\\Alisa Model(amazing-models.com)",
+        "P:\\Test Data\\Photo\\Agency Modeling"
       ],
       "threadCount": 8,
       "filesProcessed": 19694,
@@ -471,14 +779,8 @@
       "duration": 29236,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data\\Photo\\Alayna (Model Elite)",
-          "recursive": false
-        },
-        {
-          "path": "P:\\Test Data\\Video\\Alisa Model(amazing-models.com)",
-          "recursive": false
-        }
+        "P:\\Test Data\\Photo\\Alayna (Model Elite)",
+        "P:\\Test Data\\Video\\Alisa Model(amazing-models.com)"
       ],
       "threadCount": 8,
       "filesProcessed": 16,
@@ -495,10 +797,7 @@
       "duration": 27588,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": false
-        }
+        "P:\\Test Data"
       ],
       "threadCount": 8,
       "filesProcessed": 1,
@@ -515,10 +814,7 @@
       "duration": 28614,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": false
-        }
+        "P:\\Test Data"
       ],
       "threadCount": 8,
       "filesProcessed": 1,
@@ -535,10 +831,7 @@
       "duration": 28725,
       "status": "completed",
       "paths": [
-        {
-          "path": "P:\\Test Data",
-          "recursive": false
-        }
+        "P:\\Test Data"
       ],
       "threadCount": 8,
       "filesProcessed": 1,

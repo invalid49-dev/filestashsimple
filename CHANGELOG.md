@@ -1,5 +1,68 @@
 # Changelog
 
+## [v2.0.1] - 2025-11-23
+
+### 🐛 Critical Bug Fixes
+
+#### CRC32 Calculation Consistency (FIXED)
+- **Fixed CRC32 mismatch for all files**: Corrected deterministic position calculation in partial hashing
+- **Consistent results**: Same file now ALWAYS produces the same CRC32 value across scans and integrity checks
+- **Affected files**: All files, especially video files and large files (>10MB)
+
+**Root Cause:**
+- Integrity check used old `calculateCRC32()` function with inconsistent position formulas
+- Scanning used new `calculateCRC32Optimized()` with different calculations
+- Result: False positive CRC32 mismatches even when files hadn't changed
+
+**Technical Fix:**
+- Updated middle position: `Math.floor((fileSize - chunkSize) / 2)` (was: `Math.floor(fileSize / 2) - Math.floor(chunkSize / 2)`)
+- Updated end position: `fileSize - chunkSize` (was: `Math.max(0, fileSize - chunkSize)`)
+- Unified integrity check to use `calculateCRC32Optimized()` instead of old function
+- Applied fix to both `server.js` and `server/file-operations.js`
+
+**Testing:**
+- ✅ Tested on 16MB files: Consistent hash across 5 iterations
+- ✅ Tested on 67MB files: Consistent hash across 5 iterations  
+- ✅ Tested on 1067MB files: Consistent hash across 5 iterations
+- ✅ Updated 26 files in test database with correct CRC32 values
+
+#### WinRAR Removal
+- **Removed WinRAR support**: Complete removal of WinRAR integration
+- **7-Zip only**: Simplified to single archiver for better UTF-8 support
+- **No encoding issues**: Full Unicode support for all filenames (Cyrillic, Chinese, etc.)
+
+### 🛠️ Tools & Scripts
+
+#### New Testing Tools
+- `test-crc32-consistency.js` - Verify CRC32 calculation consistency for any file
+- `fix-crc32-mismatches.js` - Recalculate and update CRC32 for all files in database
+- `verify-fix.bat` - Quick verification script for testing fixes
+
+#### Documentation
+- `CRC32-FIX-DOCUMENTATION.md` - Complete technical documentation of the fix
+- `QUICK-FIX-GUIDE.md` - Quick start guide for users
+
+### 📝 Migration Notes
+
+**For Existing Databases:**
+1. Option A (Recommended): Delete database and rescan directories
+2. Option B: Run `node fix-crc32-mismatches.js` to update existing CRC32 values
+
+**For New Installations:**
+- No migration needed - works correctly out of the box
+
+### ⚠️ Known Issues
+- UI needs improvements (noted in release tag)
+- Some UI elements may need refinement
+
+### 🔧 Files Modified
+- `server.js` - Fixed `calculateCRC32Optimized()` and integrity check code
+- `server/file-operations.js` - Fixed `calculateCRC32()` function
+- `archive-with-progress.js` - Removed WinRAR code
+- `archiver-manager.js` - Simplified to 7-Zip only
+
+---
+
 ## [v2.0.0] - 2025-11-10
 
 ### 🚀 Major Features
